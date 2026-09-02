@@ -2,6 +2,7 @@ package com.fizzycoyotestudio.eventforge.persistence;
 
 import com.fizzycoyotestudio.eventforge.engine.Event;
 import com.fizzycoyotestudio.eventforge.engine.EventRegistry;
+import com.fizzycoyotestudio.eventforge.engine.GameState;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,18 +16,23 @@ public class ScenarioPersistenceService {
 
     private final ScenarioRepository repository;
     private final EventPersistenceMapper mapper;
+    private final GameStateJsonMapper stateJsonMapper;
 
-    public ScenarioPersistenceService(ScenarioRepository repository, EventPersistenceMapper mapper) {
+    public ScenarioPersistenceService(ScenarioRepository repository, EventPersistenceMapper mapper,
+                                      GameStateJsonMapper stateJsonMapper) {
         this.repository = repository;
         this.mapper = mapper;
+        this.stateJsonMapper = stateJsonMapper;
     }
 
     @Transactional
-    public UUID save(String name, String description, String startEventId, Collection<Event> events) {
+    public UUID save(String name, String description, String startEventId,
+                     GameState initialState, Collection<Event> events) {
         ScenarioEntity scenario = new ScenarioEntity();
         scenario.setName(name);
         scenario.setDescription(description);
         scenario.setStartEventBusinessId(startEventId);
+        scenario.setInitialStateJson(stateJsonMapper.write(initialState));
 
         events.forEach(event -> scenario.getEvents().add(mapper.toEntity(event, scenario)));
 
@@ -47,9 +53,11 @@ public class ScenarioPersistenceService {
                 entity.getName(),
                 entity.getDescription(),
                 entity.getStartEventBusinessId(),
+                stateJsonMapper.read(entity.getInitialStateJson()),
                 new EventRegistry(eventsById)
         );
     }
 
-    public record LoadedScenario(UUID id, String name, String description, String startEventId, EventRegistry registry) {}
+    public record LoadedScenario(UUID id, String name, String description, String startEventId,
+                                 GameState initialState, EventRegistry registry) {}
 }

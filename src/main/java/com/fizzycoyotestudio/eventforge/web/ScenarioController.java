@@ -1,6 +1,7 @@
 package com.fizzycoyotestudio.eventforge.web;
 
 import com.fizzycoyotestudio.eventforge.engine.Event;
+import com.fizzycoyotestudio.eventforge.engine.GameState;
 import com.fizzycoyotestudio.eventforge.persistence.ScenarioPersistenceService;
 import com.fizzycoyotestudio.eventforge.web.dto.EventDto;
 import com.fizzycoyotestudio.eventforge.web.dto.ScenarioCreateRequest;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -28,10 +30,11 @@ public class ScenarioController {
     @PostMapping
     public ResponseEntity<ScenarioResponse> create(@Valid @RequestBody ScenarioCreateRequest request) {
         List<Event> events = request.events().stream().map(mapper::toDomain).toList();
-        UUID id = service.save(request.name(), request.description(), request.startEventId(), events);
+        GameState initialState = new GameState(request.initialState());
+        UUID id = service.save(request.name(), request.description(), request.startEventId(), initialState, events);
 
         ScenarioResponse response = toResponse(id, request.name(), request.description(),
-                request.startEventId(), events);
+                request.startEventId(), initialState.asMap(), events);
 
         return ResponseEntity.created(URI.create("/api/scenarios/" + id)).body(response);
     }
@@ -40,12 +43,13 @@ public class ScenarioController {
     public ScenarioResponse get(@PathVariable UUID id) {
         ScenarioPersistenceService.LoadedScenario loaded = service.load(id);
         List<Event> events = List.copyOf(loaded.registry().getAll());
-        return toResponse(id, loaded.name(), loaded.description(), loaded.startEventId(), events);
+        return toResponse(id, loaded.name(), loaded.description(), loaded.startEventId(),
+                loaded.initialState().asMap(), events);
     }
 
-    private ScenarioResponse toResponse(UUID id, String name, String description,
-                                        String startEventId, List<Event> events) {
+    private ScenarioResponse toResponse(UUID id, String name, String description, String startEventId,
+                                        Map<String, Double> initialState, List<Event> events) {
         List<EventDto> eventDtos = events.stream().map(mapper::toDto).toList();
-        return new ScenarioResponse(id, name, description, startEventId, eventDtos);
+        return new ScenarioResponse(id, name, description, startEventId, initialState, eventDtos);
     }
 }

@@ -22,6 +22,9 @@ public class ScenarioEntity {
     private String name;
     private String description;
 
+    @Column(columnDefinition = "jsonb")
+    private String initialStateJson;
+
     /** Business id of the Event this scenario begins on. */
     private String startEventBusinessId;
 

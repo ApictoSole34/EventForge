@@ -30,25 +30,26 @@ class ScenarioControllerTest {
     @Test
     void createScenario_returns201WithLocationAndBody() throws Exception {
         UUID id = UUID.randomUUID();
-        when(service.save(anyString(), any(), anyString(), anyList())).thenReturn(id);
+        when(service.save(anyString(), any(), anyString(), any(), anyList())).thenReturn(id);
 
         String requestJson = """
+            {
+              "name": "Test Scenario",
+              "description": "desc",
+              "startEventId": "start",
+              "initialState": {"food": 42},
+              "events": [
                 {
-                  "name": "Test Scenario",
-                  "description": "desc",
-                  "startEventId": "start",
-                  "events": [
-                    {
-                      "id": "start",
-                      "name": "Start Event",
-                      "actions": [
-                        {"type": "MODIFY_RESOURCE", "variable": "food", "amount": -1}
-                      ],
-                      "choices": []
-                    }
-                  ]
+                  "id": "start",
+                  "name": "Start Event",
+                  "actions": [
+                    {"type": "MODIFY_RESOURCE", "variable": "food", "amount": -1}
+                  ],
+                  "choices": []
                 }
-                """;
+              ]
+            }
+            """;
 
         mockMvc.perform(post("/api/scenarios")
                         .contentType(MediaType.APPLICATION_JSON)

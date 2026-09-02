@@ -30,6 +30,7 @@ class ScenarioPersistenceServiceTest {
                 "Zombie Shelter Demo",
                 "The default zombie shelter scenario",
                 "zombie-attack",
+                ZombieShelterScenario.initialState(),
                 originalRegistry.getAll()
         );
 
@@ -39,7 +40,7 @@ class ScenarioPersistenceServiceTest {
         assertThat(loaded.startEventId()).isEqualTo("zombie-attack");
 
         EventEngine engine = new EventEngine();
-        GameState state = ZombieShelterScenario.initialState();
+        GameState state = loaded.initialState();
         GameSession session = new GameSession(engine, loaded.registry(), state, loaded.startEventId());
 
         session.triggerCurrentEvent();
