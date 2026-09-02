@@ -31,3 +31,21 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Spring Boot
+application-local.properties
+application-test.properties
+application-dev.properties
+
+# Docker
+.env
+.env.local
+*.env
+
+#Database
+postgres-data/
+pgdata/
+
+# System
+.DS_Store
+Thumbs.db

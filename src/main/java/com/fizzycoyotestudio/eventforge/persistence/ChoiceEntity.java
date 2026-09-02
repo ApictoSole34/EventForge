@@ -1,0 +1,34 @@
+package com.fizzycoyotestudio.eventforge.persistence;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.util.UUID;
+
+@Entity
+@Table(name = "choices")
+@Getter
+@Setter
+public class ChoiceEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    private String businessId;
+    private String label;
+    private String description;
+
+    @Column(columnDefinition = "jsonb")
+    private String conditionJson;
+
+    @Column(columnDefinition = "jsonb")
+    private String actionsJson;
+
+    private String nextEventBusinessId;
+
+    @ManyToOne
+    @JoinColumn(name = "event_id")
+    private EventEntity event;
+}

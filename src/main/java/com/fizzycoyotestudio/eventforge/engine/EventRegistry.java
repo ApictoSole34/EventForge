@@ -1,5 +1,6 @@
 package com.fizzycoyotestudio.eventforge.engine;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
@@ -27,5 +28,9 @@ public final class EventRegistry {
 
     public boolean contains(String eventId) {
         return eventsById.containsKey(eventId);
+    }
+
+    public Collection<Event> getAll() {
+        return eventsById.values();
     }
 }

@@ -23,7 +23,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = ComparisonCondition.class, name = "COMPARISON"),
         @JsonSubTypes.Type(value = AndCondition.class, name = "AND"),
         @JsonSubTypes.Type(value = OrCondition.class, name = "OR"),
-        @JsonSubTypes.Type(value = NotCondition.class, name = "NOT")
+        @JsonSubTypes.Type(value = NotCondition.class, name = "NOT"),
+        @JsonSubTypes.Type(value = AlwaysTrueCondition.class, name = "ALWAYS_TRUE")
 })
 public interface Condition {
 
@@ -31,6 +32,6 @@ public interface Condition {
 
     /** A condition that is always true — useful as a default/no-op. */
     static Condition alwaysTrue() {
-        return state -> true;
+        return new AlwaysTrueCondition();
     }
 }
