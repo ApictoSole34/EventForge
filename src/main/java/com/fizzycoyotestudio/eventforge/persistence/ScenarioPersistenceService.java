@@ -40,6 +40,28 @@ public class ScenarioPersistenceService {
         return repository.save(scenario).getId();
     }
 
+    @Transactional
+    public void saveEvent(UUID scenarioId, Event event) {
+        ScenarioEntity scenario = repository.findById(scenarioId)
+                .orElseThrow(() -> new IllegalArgumentException("No scenario with id " + scenarioId));
+
+        boolean replaced = scenario.getEvents().removeIf(e -> e.getBusinessId().equals(event.getId()));
+        if (replaced) {
+            repository.saveAndFlush(scenario);
+        }
+
+        scenario.getEvents().add(mapper.toEntity(event, scenario));
+        repository.save(scenario);
+    }
+
+    @Transactional
+    public void deleteEvent(UUID scenarioId, String eventId) {
+        ScenarioEntity scenario = repository.findById(scenarioId)
+                .orElseThrow(() -> new IllegalArgumentException("No scenario with id " + scenarioId));
+        scenario.getEvents().removeIf(e -> e.getBusinessId().equals(eventId));
+        repository.save(scenario);
+    }
+
     @Transactional(readOnly = true)
     public LoadedScenario load(UUID scenarioId) {
         ScenarioEntity entity = repository.findById(scenarioId)

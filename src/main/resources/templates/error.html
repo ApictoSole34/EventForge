@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layouts/base :: head(pageTitle='Error')}"></head>
+<body>
+<th:block th:replace="~{layouts/base :: header}"></th:block>
+<div th:fragment="content">
+    <div class="card" style="border-color:#6a2a2a;background:#1a1010;">
+        <div class="card-title" style="color:#e0a0a0;">⚠ Something went wrong</div>
+        <p style="color:#d0b0b0;" th:text="${message}">Error message</p>
+        <a href="/dashboard" class="btn btn-outline" style="margin-top:1rem;display:inline-block;">← Back to Dashboard</a>
+    </div>
+</div>
+<th:block th:replace="~{layouts/base :: footer}"></th:block>
+</body>
+</html>

@@ -19,9 +19,11 @@
 
     <div style="border-left: 3px solid #3a6a3a; padding-left: 1.5rem; margin: 2rem 0;">
         <h3 style="color: #b0d4b0; margin-bottom: 0.5rem;">Event Graph</h3>
+        <a th:href="'/scenarios/' + ${scenario.id} + '/events/create'" class="btn btn-primary" style="margin-bottom:1rem;display:inline-block;">+ Add Event</a>
         <p style="color: #7a8a7a; font-size: 0.95rem;" th:if="${scenario.events.isEmpty()}">No events in this scenario.</p>
         <div style="display: flex; flex-direction: column; gap: 1rem;" th:each="event : ${scenario.events}">
             <div class="card" style="margin-bottom: 0;">
+
                 <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 0.5rem;">
                     <div>
                         <span class="badge" style="background-color: #1a3a1a; color: #a0c0a0;" th:text="${event.id}">zombie-attack</span>
@@ -31,10 +33,10 @@
                     </div>
                     <span style="color: #6a8a6a; font-size: 0.85rem;" th:text="'next: ' + (${event.nextEventId} ?: 'END')">next: loot</span>
                 </div>
+
                 <div style="margin-top: 0.5rem; font-weight: 500;" th:text="${event.name}">Zombie Attack</div>
                 <div style="color: #8a9a8a; font-size: 0.9rem;" th:text="${event.description}">Description</div>
 
-                <!-- Choices (if any) -->
                 <div th:if="${!event.choices.isEmpty()}" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #2a3a2a;">
                     <div style="font-size: 0.9rem; font-weight: 600; color: #b0c0b0; margin-bottom: 0.5rem;">Choices:</div>
                     <div th:each="choice : ${event.choices}" style="display: flex; justify-content: space-between; align-items: center; background-color: #141a1a; padding: 0.4rem 0.8rem; border-radius: 4px; margin-bottom: 0.3rem; font-size: 0.9rem;">
@@ -42,11 +44,18 @@
                         <span style="color: #6a8a6a; font-size: 0.8rem;" th:text="'→ ' + (${choice.nextEventId} ?: 'END')">→ loot</span>
                     </div>
                 </div>
+
+                <div style="margin-top:0.8rem;display:flex;gap:0.6rem;">
+                    <a th:href="'/scenarios/' + ${scenario.id} + '/events/' + ${event.id} + '/edit'" class="btn btn-outline">Edit</a>
+                    <form th:action="'/scenarios/' + ${scenario.id} + '/events/' + ${event.id} + '/delete'" method="post"
+                          onsubmit="return confirm('Delete this event?');" style="display:inline;">
+                        <button type="submit" class="btn btn-outline" style="color:#d08080;">Delete</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Initial State -->
     <div class="card" style="background-color: #111818; border-color: #1a3a1a;">
         <div style="font-weight: 600; color: #b0d0b0;">Initial Game State</div>
         <div style="display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-top: 0.5rem;">

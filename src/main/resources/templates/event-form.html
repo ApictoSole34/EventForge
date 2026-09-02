@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layouts/base :: head(pageTitle=(${isEdit} ? 'Edit Event' : 'Create Event'))}"></head>
+<body>
+<th:block th:replace="~{layouts/base :: header}"></th:block>
+
+<div th:fragment="content">
+    <a th:href="'/scenarios/' + ${scenarioId}" style="color:#8a9a8a;text-decoration:none;">&larr; Back to <span th:text="${scenarioName}">Scenario</span></a>
+    <h1 style="font-size:1.8rem;margin:0.8rem 0 1.5rem;" th:text="${isEdit} ? 'Edit Event' : 'Create Event'">Create Event</h1>
+    <div th:if="${errors != null and !errors.isEmpty()}" class="card" style="border-color:#6a2a2a;background:#2a1414;">
+        <div style="font-weight:600;color:#e0a0a0;margin-bottom:0.5rem;">⚠ Please fix the following:</div>
+        <ul style="margin-left:1.2rem;color:#d0a0a0;">
+            <li th:each="err : ${errors}" th:text="${err}"></li>
+        </ul>
+    </div>
+    <form th:action="${isEdit}
+                ? ('/scenarios/' + ${scenarioId} + '/events/' + ${eventForm.id})
+                : ('/scenarios/' + ${scenarioId} + '/events')"
+          th:object="${eventForm}" method="post">
+
+        <div class="card">
+            <label>Event ID</label><br>
+            <input type="text" th:field="*{id}" th:readonly="${isEdit}" required
+                   placeholder="e.g. zombie-attack"
+                   style="width:100%;padding:0.5rem;margin:0.4rem 0 1rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+
+            <label>Name</label><br>
+            <input type="text" th:field="*{name}" required
+                   style="width:100%;padding:0.5rem;margin:0.4rem 0 1rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+
+            <label>Description</label><br>
+            <textarea th:field="*{description}" rows="2"
+                      style="width:100%;padding:0.5rem;margin:0.4rem 0 1rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;"></textarea>
+        </div>
+
+        <div class="card">
+            <div class="card-title" style="font-size:1.1rem;">Condition (optional)</div>
+            <p style="color:#7a8a7a;font-size:0.85rem;">Leave the variable blank for no condition. Only a single comparison is supported here — compound AND/OR conditions must be authored via the API/JSON.</p>
+            <div style="display:flex;gap:0.8rem;flex-wrap:wrap;margin-top:0.6rem;">
+                <input type="text" th:field="*{conditionVariable}" placeholder="variable (e.g. zombies)"
+                       style="flex:1;min-width:150px;padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <select th:field="*{conditionOperator}" style="padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <option value="">--</option>
+                    <option th:each="op : ${operators}" th:value="${op}" th:text="${op}">GREATER_THAN</option>
+                </select>
+                <input type="number" step="any" th:field="*{conditionValue}" placeholder="value"
+                       style="width:120px;padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title" style="font-size:1.1rem;">Actions</div>
+            <div id="actions-container">
+                <div class="action-row" th:each="action, iter : *{actions}" style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">
+                    <select th:field="*{actions[__${iter.index}__].actionType}" style="padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                        <option value="MODIFY_RESOURCE">Modify (+/-)</option>
+                        <option value="SET_RESOURCE">Set to</option>
+                    </select>
+                    <input type="text" th:field="*{actions[__${iter.index}__].variable}" placeholder="variable"
+                           style="flex:1;min-width:120px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <input type="number" step="any" th:field="*{actions[__${iter.index}__].amount}" placeholder="amount"
+                           style="width:100px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <button type="button" class="remove-row btn btn-outline" style="padding:0.3rem 0.7rem;">Remove</button>
+                </div>
+            </div>
+            <button type="button" id="add-action" class="btn btn-outline">+ Add Action</button>
+        </div>
+
+        <div class="card">
+            <div class="card-title" style="font-size:1.1rem;">Choices</div>
+            <p style="color:#7a8a7a;font-size:0.85rem;">Leave empty if this event transitions automatically via "Next Event" below.</p>
+            <div id="choices-container">
+                <div class="choice-row card" th:each="choice, citer : *{choices}"
+                     style="background:#141a1a;margin-top:1rem;" th:attr="data-choice-index=${citer.index}">
+                    <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+                        <input type="text" th:field="*{choices[__${citer.index}__].id}" placeholder="choice id"
+                               style="flex:1;min-width:140px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                        <input type="text" th:field="*{choices[__${citer.index}__].label}" placeholder="Label shown to player"
+                               style="flex:1;min-width:140px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                        <select th:field="*{choices[__${citer.index}__].nextEventId}" style="padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                            <option value="">(END)</option>
+                            <option th:each="id : ${existingEventIds}" th:value="${id}" th:text="${id}">loot</option>
+                        </select>
+                        <button type="button" class="remove-choice btn btn-outline">Remove Choice</button>
+                    </div>
+                    <div class="choice-actions" style="padding-left:1rem;border-left:2px solid #2a3a2a;" th:attr="data-action-index=${choice.actions.size()}">
+                        <div class="choice-action-row" th:each="cAction, caiter : ${choice.actions}" style="display:flex;gap:0.5rem;margin-bottom:0.4rem;flex-wrap:wrap;">
+                            <select th:field="*{choices[__${citer.index}__].actions[__${caiter.index}__].actionType}" style="padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                                <option value="MODIFY_RESOURCE">Modify (+/-)</option>
+                                <option value="SET_RESOURCE">Set to</option>
+                            </select>
+                            <input type="text" th:field="*{choices[__${citer.index}__].actions[__${caiter.index}__].variable}" placeholder="variable"
+                                   style="flex:1;min-width:100px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                            <input type="number" step="any" th:field="*{choices[__${citer.index}__].actions[__${caiter.index}__].amount}" placeholder="amount"
+                                   style="width:90px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                            <button type="button" class="remove-row btn btn-outline" style="padding:0.2rem 0.6rem;">Remove</button>
+                        </div>
+                        <button type="button" class="add-choice-action btn btn-outline" style="padding:0.2rem 0.6rem;font-size:0.85rem;">+ Add Action</button>
+                    </div>
+                </div>
+            </div>
+            <button type="button" id="add-choice" class="btn btn-outline" style="margin-top:0.8rem;">+ Add Choice</button>
+        </div>
+
+        <div class="card">
+            <div class="card-title" style="font-size:1.1rem;">Next Event (used only when there are no choices)</div>
+            <select th:field="*{nextEventId}" style="padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <option value="">(END — terminal event)</option>
+                <option th:each="id : ${existingEventIds}" th:value="${id}" th:text="${id}">loot</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="font-size:1rem;padding:0.6rem 1.6rem;">
+            <span th:text="${isEdit} ? 'Save Changes' : 'Create Event'">Create Event</span>
+        </button>
+    </form>
+
+    <script th:inline="javascript">
+        let actionIndex = 0;
+        let choiceIndex = 0;
+        const nextEventOptions = [];
+
+        function actionRowHtml(prefix, index) {
+            return `<div class="action-row" style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">
+                <select name="${prefix}[${index}].actionType" style="padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <option value="MODIFY_RESOURCE">Modify (+/-)</option>
+                    <option value="SET_RESOURCE">Set to</option>
+                </select>
+                <input type="text" name="${prefix}[${index}].variable" placeholder="variable" style="flex:1;min-width:120px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <input type="number" step="any" name="${prefix}[${index}].amount" placeholder="amount" style="width:100px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <button type="button" class="remove-row btn btn-outline" style="padding:0.3rem 0.7rem;">Remove</button>
+            </div>`;
+        }
+
+        document.getElementById('add-action').addEventListener('click', () => {
+            document.getElementById('actions-container').insertAdjacentHTML('beforeend', actionRowHtml('actions', actionIndex));
+            actionIndex++;
+        });
+
+        document.getElementById('add-choice').addEventListener('click', () => {
+            const idx = choiceIndex;
+            const optionsHtml = ['<option value="">(END)</option>']
+                .concat(nextEventOptions.map(id => `<option value="${id}">${id}</option>`)).join('');
+            const html = `<div class="choice-row card" data-choice-index="${idx}" style="background:#141a1a;margin-top:1rem;">
+                <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+                    <input type="text" name="choices[${idx}].id" placeholder="choice id" style="flex:1;min-width:140px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <input type="text" name="choices[${idx}].label" placeholder="Label shown to player" style="flex:1;min-width:140px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <select name="choices[${idx}].nextEventId" style="padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">${optionsHtml}</select>
+                    <button type="button" class="remove-choice btn btn-outline">Remove Choice</button>
+                </div>
+                <div class="choice-actions" style="padding-left:1rem;border-left:2px solid #2a3a2a;" data-action-index="0">
+                    <button type="button" class="add-choice-action btn btn-outline" style="padding:0.2rem 0.6rem;font-size:0.85rem;">+ Add Action</button>
+                </div>
+            </div>`;
+            document.getElementById('choices-container').insertAdjacentHTML('beforeend', html);
+            choiceIndex++;
+        });
+
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-row')) e.target.closest('.action-row').remove();
+            if (e.target.classList.contains('remove-choice')) e.target.closest('.choice-row').remove();
+            if (e.target.classList.contains('add-choice-action')) {
+                const choiceRow = e.target.closest('.choice-row');
+                const cIdx = choiceRow.dataset.choiceIndex;
+                const actionsDiv = choiceRow.querySelector('.choice-actions');
+                const aIdx = parseInt(actionsDiv.dataset.actionIndex || '0');
+                const html = `<div class="choice-action-row" style="display:flex;gap:0.5rem;margin-bottom:0.4rem;flex-wrap:wrap;">
+                    <select name="choices[${cIdx}].actions[${aIdx}].actionType" style="padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                        <option value="MODIFY_RESOURCE">Modify (+/-)</option>
+                        <option value="SET_RESOURCE">Set to</option>
+                    </select>
+                    <input type="text" name="choices[${cIdx}].actions[${aIdx}].variable" placeholder="variable" style="flex:1;min-width:100px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <input type="number" step="any" name="choices[${cIdx}].actions[${aIdx}].amount" placeholder="amount" style="width:90px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <button type="button" class="remove-row btn btn-outline" style="padding:0.2rem 0.6rem;">Remove</button>
+                </div>`;
+                actionsDiv.querySelector('.add-choice-action').insertAdjacentHTML('beforebegin', html);
+                actionsDiv.dataset.actionIndex = aIdx + 1;
+            }
+        });
+    </script>
+</div>
+
+<th:block th:replace="~{layouts/base :: footer}"></th:block>
+</body>
+</html>
