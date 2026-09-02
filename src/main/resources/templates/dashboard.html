@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layouts/base :: head(pageTitle='Dashboard')}"></head>
+<body>
+<th:block th:replace="~{layouts/base :: header}"></th:block>
+
+<div th:fragment="content">
+    <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">📋 Scenarios</h1>
+
+    <div th:if="${scenarios.isEmpty()}" class="card">
+        <p style="color: #8a9a8a;">No scenarios found. Create your first scenario via the API or builder.</p>
+    </div>
+
+    <div class="grid-2" th:each="scenario : ${scenarios}">
+        <div class="card">
+            <div class="card-title" th:text="${scenario.name}">Scenario Name</div>
+            <div class="card-subtitle" th:text="${scenario.description} ?: 'No description'">Description</div>
+            <div style="margin-top: 0.8rem; display: flex; gap: 0.8rem; flex-wrap: wrap;">
+                <span class="badge" th:text="'Events: ' + ${scenario.events.size()}">Events: 5</span>
+                <span class="badge" th:text="'Start: ' + ${scenario.startEventId}">Start: zombie-attack</span>
+            </div>
+            <div style="margin-top: 1rem;">
+                <a th:href="'/scenarios/' + ${scenario.id}" class="btn btn-outline">View Details →</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{layouts/base :: footer}"></th:block>
+</body>
+</html>

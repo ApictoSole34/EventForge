@@ -1,0 +1,79 @@
+{
+  "name": "Zombie Shelter",
+  "description": "Survive the zombie apocalypse",
+  "startEventId": "zombie-attack",
+  "initialState": {
+    "day": 17,
+    "survivors": 6,
+    "food": 42,
+    "water": 31,
+    "ammo": 13,
+    "morale": 67,
+    "zombies": 12,
+    "shelterHealth": 84
+  },
+  "events": [
+    {
+      "id": "zombie-attack",
+      "name": "Zombie Attack",
+      "description": "A group of zombies reached the shelter.",
+      "condition": {
+        "type": "COMPARISON",
+        "variable": "zombies",
+        "operator": "GREATER_THAN",
+        "value": 0
+      },
+      "actions": [
+        { "type": "MODIFY_RESOURCE", "variable": "ammo", "amount": -2 },
+        { "type": "MODIFY_RESOURCE", "variable": "morale", "amount": -5 }
+      ],
+      "nextEventId": "zombie-attack-result"
+    },
+    {
+      "id": "zombie-attack-result",
+      "name": "Zombie Attack Result",
+      "description": "The shelter must respond to the attack.",
+      "choices": [
+        {
+          "id": "push-back",
+          "label": "Push Back",
+          "description": "Fight the zombies head-on.",
+          "actions": [{ "type": "MODIFY_RESOURCE", "variable": "zombies", "amount": -5 }],
+          "nextEventId": "loot"
+        },
+        {
+          "id": "retreat",
+          "label": "Retreat",
+          "description": "Fall back and save resources.",
+          "actions": [
+            { "type": "MODIFY_RESOURCE", "variable": "shelterHealth", "amount": -10 },
+            { "type": "MODIFY_RESOURCE", "variable": "morale", "amount": -5 }
+          ],
+          "nextEventId": "night-falls"
+        }
+      ]
+    },
+    {
+      "id": "loot",
+      "name": "Loot",
+      "description": "The fallen zombies left something behind.",
+      "actions": [
+        { "type": "MODIFY_RESOURCE", "variable": "food", "amount": 10 },
+        { "type": "MODIFY_RESOURCE", "variable": "ammo", "amount": 3 }
+      ],
+      "nextEventId": "day-summary"
+    },
+    {
+      "id": "night-falls",
+      "name": "Night Falls",
+      "description": "The shelter settles in for the night.",
+      "nextEventId": "day-summary"
+    },
+    {
+      "id": "day-summary",
+      "name": "Day Summary",
+      "description": "Another day survived.",
+      "actions": [{ "type": "MODIFY_RESOURCE", "variable": "day", "amount": 1 }]
+    }
+  ]
+}

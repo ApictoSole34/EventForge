@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${pageTitle} ?: 'EventForge'">EventForge</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background-color: #0b0e0f;
+            color: #d4d4d4;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            flex: 1;
+        }
+        header {
+            background-color: #1a1f21;
+            border-bottom: 2px solid #3a4a3a;
+            padding: 1rem 0;
+        }
+        header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #b0d4b0;
+        }
+        .logo span {
+            color: #7a9f7a;
+        }
+        nav a {
+            color: #b0b0b0;
+            text-decoration: none;
+            margin-left: 1.5rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        nav a:hover {
+            color: #b0d4b0;
+        }
+        footer {
+            background-color: #1a1f21;
+            border-top: 1px solid #2a3a2a;
+            padding: 1rem 0;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #7a8a7a;
+            margin-top: 2rem;
+        }
+        .card {
+            background-color: #1a2022;
+            border: 1px solid #2a3a2a;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: border-color 0.2s;
+        }
+        .card:hover {
+            border-color: #4a6a4a;
+        }
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #c8e6c8;
+            margin-bottom: 0.5rem;
+        }
+        .card-subtitle {
+            color: #8a9a8a;
+            font-size: 0.95rem;
+        }
+        .badge {
+            display: inline-block;
+            background-color: #2a4a2a;
+            color: #b0d4b0;
+            padding: 0.2rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.4rem 1.2rem;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        .btn-primary {
+            background-color: #2a5a2a;
+            color: #e0f0e0;
+        }
+        .btn-primary:hover {
+            background-color: #3a7a3a;
+        }
+        .btn-outline {
+            border: 1px solid #4a6a4a;
+            color: #b0d4b0;
+        }
+        .btn-outline:hover {
+            background-color: #2a3a2a;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            header .container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            nav a {
+                margin-left: 0;
+                margin-right: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <div class="container">
+        <div class="logo">Event<span>Forge</span></div>
+        <nav>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/scenarios">Scenarios</a>
+            <a href="/game/zombie-shelter">Play</a>
+        </nav>
+    </div>
+</header>
+
+<main class="container">
+    <div th:replace="~{::content}">
+    </div>
+</main>
+
+<footer>
+    <div class="container">
+        EventForge &bull; Engine for interactive storytelling
+    </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layouts/base :: head(pageTitle=scenario.name)}"></head>
+<body>
+<th:block th:replace="~{layouts/base :: header}"></th:block>
+
+<div th:fragment="content">
+    <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; margin-bottom: 1.5rem;">
+        <div>
+            <a href="/dashboard" style="color: #8a9a8a; text-decoration: none;">← Back to Dashboard</a>
+            <h1 style="font-size: 2rem; margin-top: 0.5rem;" th:text="${scenario.name}">Scenario Name</h1>
+            <p style="color: #8a9a8a;" th:text="${scenario.description} ?: 'No description'">Description</p>
+        </div>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <span class="badge" th:text="'Start: ' + ${scenario.startEventId}">Start: zombie-attack</span>
+            <span class="badge" th:text="'Events: ' + ${scenario.events.size()}">Events: 5</span>
+        </div>
+    </div>
+
+    <div style="border-left: 3px solid #3a6a3a; padding-left: 1.5rem; margin: 2rem 0;">
+        <h3 style="color: #b0d4b0; margin-bottom: 0.5rem;">Event Graph</h3>
+        <p style="color: #7a8a7a; font-size: 0.95rem;" th:if="${scenario.events.isEmpty()}">No events in this scenario.</p>
+        <div style="display: flex; flex-direction: column; gap: 1rem;" th:each="event : ${scenario.events}">
+            <div class="card" style="margin-bottom: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 0.5rem;">
+                    <div>
+                        <span class="badge" style="background-color: #1a3a1a; color: #a0c0a0;" th:text="${event.id}">zombie-attack</span>
+                        <span class="badge" style="background-color: #2a2a3a; color: #b0b0d0;" th:if="${event.condition.class.simpleName != 'AlwaysTrueCondition'}" th:text="'condition'">condition</span>
+                        <span class="badge" style="background-color: #2a3a2a; color: #b0d0b0;" th:if="${event.actions.size() > 0}" th:text="'actions: ' + ${event.actions.size()}">actions: 2</span>
+                        <span class="badge" style="background-color: #3a2a2a; color: #d0b0b0;" th:if="${event.choices.size() > 0}" th:text="'choices: ' + ${event.choices.size()}">choices: 2</span>
+                    </div>
+                    <span style="color: #6a8a6a; font-size: 0.85rem;" th:text="'next: ' + (${event.nextEventId} ?: 'END')">next: loot</span>
+                </div>
+                <div style="margin-top: 0.5rem; font-weight: 500;" th:text="${event.name}">Zombie Attack</div>
+                <div style="color: #8a9a8a; font-size: 0.9rem;" th:text="${event.description}">Description</div>
+
+                <!-- Choices (if any) -->
+                <div th:if="${!event.choices.isEmpty()}" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #2a3a2a;">
+                    <div style="font-size: 0.9rem; font-weight: 600; color: #b0c0b0; margin-bottom: 0.5rem;">Choices:</div>
+                    <div th:each="choice : ${event.choices}" style="display: flex; justify-content: space-between; align-items: center; background-color: #141a1a; padding: 0.4rem 0.8rem; border-radius: 4px; margin-bottom: 0.3rem; font-size: 0.9rem;">
+                        <span th:text="${choice.label} + ' (' + ${choice.id} + ')'">Push Back (push-back)</span>
+                        <span style="color: #6a8a6a; font-size: 0.8rem;" th:text="'→ ' + (${choice.nextEventId} ?: 'END')">→ loot</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Initial State -->
+    <div class="card" style="background-color: #111818; border-color: #1a3a1a;">
+        <div style="font-weight: 600; color: #b0d0b0;">Initial Game State</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-top: 0.5rem;">
+                <span th:each="entry : ${scenario.initialState}" style="background-color: #1a2a1a; padding: 0.2rem 0.8rem; border-radius: 12px; font-size: 0.85rem;">
+                    <span th:text="${entry.key} + ':'" style="color: #7a9a7a;"></span>
+                    <span th:text="${entry.value}" style="color: #c8e6c8; font-weight: 500;"></span>
+                </span>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{layouts/base :: footer}"></th:block>
+</body>
+</html>

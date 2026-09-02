@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -56,6 +57,25 @@ public class ScenarioPersistenceService {
                 stateJsonMapper.read(entity.getInitialStateJson()),
                 new EventRegistry(eventsById)
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<LoadedScenario> findAll() {
+        return repository.findAll().stream()
+                .map(entity -> {
+                    Map<String, Event> eventsById = entity.getEvents().stream()
+                            .map(mapper::toDomain)
+                            .collect(Collectors.toMap(Event::getId, e -> e));
+                    return new LoadedScenario(
+                            entity.getId(),
+                            entity.getName(),
+                            entity.getDescription(),
+                            entity.getStartEventBusinessId(),
+                            stateJsonMapper.read(entity.getInitialStateJson()),
+                            new EventRegistry(eventsById)
+                    );
+                })
+                .toList();
     }
 
     public record LoadedScenario(UUID id, String name, String description, String startEventId,

@@ -3,6 +3,8 @@ package com.fizzycoyotestudio.eventforge.persistence;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,9 +32,11 @@ public class EventEntity {
     private ScenarioEntity scenario;
 
     @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String conditionJson;
 
     @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String actionsJson;
 
     /** Business id of the next Event, or null if this is a terminal event. Not a DB FK on purpose — see ADR note below. */
