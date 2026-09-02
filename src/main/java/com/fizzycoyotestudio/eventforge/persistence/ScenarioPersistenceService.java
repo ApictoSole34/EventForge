@@ -43,11 +43,13 @@ public class ScenarioPersistenceService {
                 .collect(Collectors.toMap(Event::getId, e -> e));
 
         return new LoadedScenario(
+                entity.getId(),
                 entity.getName(),
+                entity.getDescription(),
                 entity.getStartEventBusinessId(),
                 new EventRegistry(eventsById)
         );
     }
 
-    public record LoadedScenario(String name, String startEventId, EventRegistry registry) {}
+    public record LoadedScenario(UUID id, String name, String description, String startEventId, EventRegistry registry) {}
 }
