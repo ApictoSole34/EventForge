@@ -44,8 +44,8 @@ class GameActionTest {
         GameState state = new GameState();
         state.set("morale", 50.0);
 
-        GameAction first = new ModifyResourceAction("morale", 20.0);
-        GameAction second = new ModifyResourceAction("morale", -100.0);
+        GameAction first = new ModifyResourceAction("morale", 20.0);   // -> 70
+        GameAction second = new ModifyResourceAction("morale", -100.0); // -> -30
 
         first.execute(state);
         second.execute(state);

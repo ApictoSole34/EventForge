@@ -1,5 +1,8 @@
 package com.fizzycoyotestudio.eventforge.engine;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.Objects;
 
 /**
@@ -12,7 +15,9 @@ public final class SetResourceAction implements GameAction {
     private final String variable;
     private final double value;
 
-    public SetResourceAction(String variable, double value) {
+    @JsonCreator
+    public SetResourceAction(@JsonProperty("variable") String variable,
+                             @JsonProperty("value") double value) {
         this.variable = Objects.requireNonNull(variable, "variable must not be null");
         this.value = value;
     }

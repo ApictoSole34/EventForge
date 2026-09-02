@@ -1,5 +1,8 @@
 package com.fizzycoyotestudio.eventforge.engine;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.Objects;
 
 /** Composite condition: negates a single child condition. */
@@ -7,7 +10,8 @@ public final class NotCondition implements Condition {
 
     private final Condition condition;
 
-    public NotCondition(Condition condition) {
+    @JsonCreator
+    public NotCondition(@JsonProperty("condition") Condition condition) {
         this.condition = Objects.requireNonNull(condition);
     }
 

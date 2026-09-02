@@ -1,5 +1,8 @@
 package com.fizzycoyotestudio.eventforge.engine;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -12,7 +15,8 @@ public final class OrCondition implements Condition {
 
     private final List<Condition> conditions;
 
-    public OrCondition(List<Condition> conditions) {
+    @JsonCreator
+    public OrCondition(@JsonProperty("conditions") List<Condition> conditions) {
         this.conditions = List.copyOf(Objects.requireNonNull(conditions));
     }
 

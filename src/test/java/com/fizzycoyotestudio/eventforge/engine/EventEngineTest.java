@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 class EventEngineTest {
 
@@ -82,6 +83,7 @@ class EventEngineTest {
                 .nextEventId("night-falls")
                 .build();
 
+        // Only available once survivors dropped very low, to prove filtering works.
         Choice desperateMeasure = Choice.builder()
                 .id("desperate")
                 .label("Sacrifice someone")
@@ -102,7 +104,7 @@ class EventEngineTest {
         assertThat(result.isAwaitingChoice()).isTrue();
         assertThat(result.getOfferedChoices())
                 .extracting(Choice::getId)
-                .containsExactly("let-him-in", "refuse"); // "desperate" filtered out
+                .containsExactly("let-him-in", "refuse");
     }
 
     @Test
@@ -127,5 +129,26 @@ class EventEngineTest {
         assertThat(result.getNextEventId()).isEqualTo("stranger-joins");
         assertThat(state.get("survivors")).isEqualTo(7.0);
         assertThat(state.get("morale")).isEqualTo(72.0);
+    }
+
+    @Test
+    void resolvingAStaleChoiceThrowsWhenConditionNoLongerHolds() {
+        GameState state = new GameState();
+        state.set("survivors", 1.0); // too low now
+
+        Choice desperateMeasure = Choice.builder()
+                .id("desperate")
+                .label("Sacrifice someone")
+                .condition(new ComparisonCondition("survivors", Operator.LESS_THAN, 2.0))
+                .nextEventId("tragedy")
+                .build();
+
+        assertThat(desperateMeasure.isAvailable(state)).isTrue();
+
+        state.set("survivors", 10.0);
+
+        assertThatThrownBy(() -> engine.resolveChoice(desperateMeasure, state))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("desperate");
     }
 }

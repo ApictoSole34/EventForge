@@ -1,5 +1,8 @@
 package com.fizzycoyotestudio.eventforge.engine;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.Objects;
 
 /**
@@ -14,7 +17,10 @@ public final class ComparisonCondition implements Condition {
     private final Operator operator;
     private final double value;
 
-    public ComparisonCondition(String variable, Operator operator, double value) {
+    @JsonCreator
+    public ComparisonCondition(@JsonProperty("variable") String variable,
+                               @JsonProperty("operator") Operator operator,
+                               @JsonProperty("value") double value) {
         this.variable = Objects.requireNonNull(variable, "variable must not be null");
         this.operator = Objects.requireNonNull(operator, "operator must not be null");
         this.value = value;
