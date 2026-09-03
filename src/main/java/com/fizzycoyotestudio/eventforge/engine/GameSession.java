@@ -23,8 +23,12 @@ public final class GameSession {
 
     @Getter
     private Event currentEvent;
+
     @Getter
     private List<Choice> pendingChoices = List.of();
+
+    @Getter
+    private boolean terminal = false;
 
     public GameSession(EventEngine engine, EventRegistry registry, GameState state, String startEventId) {
         this.engine = Objects.requireNonNull(engine);
@@ -35,20 +39,24 @@ public final class GameSession {
 
     /** Triggers the current event: applies its actions, and either offers choices or advances automatically. */
     public EventResult triggerCurrentEvent() {
+        if (terminal) {
+            throw new IllegalStateException("Session is terminal; no further events.");
+        }
         EventResult result = engine.execute(currentEvent, state);
-
         if (!result.isTriggered()) {
             pendingChoices = List.of();
             return result;
         }
-
         if (result.isAwaitingChoice()) {
             pendingChoices = result.getOfferedChoices();
         } else {
             pendingChoices = List.of();
-            advanceTo(result.getNextEventId());
+            if (result.hasNextEvent()) {
+                advanceTo(result.getNextEventId());
+            } else {
+                terminal = true;
+            }
         }
-
         return result;
     }
 
@@ -62,18 +70,19 @@ public final class GameSession {
 
         EventResult result = engine.resolveChoice(choice, state);
         pendingChoices = List.of();
-
         if (result.hasNextEvent()) {
             advanceTo(result.getNextEventId());
+        } else {
+            terminal = true;
         }
-
         return result;
     }
 
     private void advanceTo(String nextEventId) {
         if (nextEventId != null && registry.contains(nextEventId)) {
             this.currentEvent = registry.getOrThrow(nextEventId);
+        } else {
+            this.terminal = true;
         }
     }
-
 }

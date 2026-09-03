@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layouts/base :: head(pageTitle=gameSession.eventName)}"></head>
+<body>
+<th:block th:replace="~{layouts/base :: header}"></th:block>
+
+<div th:fragment="content">
+    <h1 style="font-size:1.6rem;margin-bottom:1rem;">🏚 Zombie Shelter</h1>
+
+    <div class="card" style="background-color:#111818;border-color:#1a3a1a;margin-bottom:1.5rem;">
+        <div style="font-weight:600;color:#b0d0b0;margin-bottom:0.5rem;">Shelter Status</div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem 1.2rem;">
+            <span th:each="entry : ${gameSession.state}" style="background-color:#1a2a1a;padding:0.2rem 0.8rem;border-radius:12px;font-size:0.85rem;">
+                <span th:text="${entry.key} + ':'" style="color:#7a9a7a;"></span>
+                <span th:text="${entry.value}" style="color:#c8e6c8;font-weight:500;"></span>
+            </span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title" th:text="${gameSession.eventName}">Event Name</div>
+        <p style="color:#b0b0b0;margin-top:0.5rem;" th:text="${gameSession.eventDescription}">Event description</p>
+
+        <!-- Case 1: terminal — story ends here -->
+        <div th:if="${gameSession.terminal != null and gameSession.terminal}" style="margin-top:1.5rem;">
+            <p style="color:#d0a0a0;font-weight:600;">The story ends here.</p>
+            <a href="/game/zombie-shelter" class="btn btn-primary" style="margin-top:0.8rem;display:inline-block;">Play Again</a>
+        </div>
+
+        <!-- Case 2: triggered and choices are available -->
+        <div th:if="${gameSession.terminal != null and !gameSession.terminal and gameSession.triggered != null and gameSession.triggered and !gameSession.choices.isEmpty()}" style="margin-top:1.5rem;">
+            <p style="color:#8a9a8a;margin-bottom:0.8rem;">What do you do?</p>
+            <form th:each="choice : ${gameSession.choices}"
+                  th:action="@{/game/session/{sessionId}/choice(sessionId=${sessionId})}" method="post" style="display:inline-block;margin-right:0.6rem;margin-bottom:0.6rem;">
+                <input type="hidden" name="choiceId" th:value="${choice.id}">
+                <button type="submit" class="btn btn-primary" th:text="${choice.label}">Choice</button>
+            </form>
+        </div>
+
+        <!-- Case 3: not yet triggered — waiting for player to advance -->
+        <div th:if="${gameSession.terminal != null and !gameSession.terminal and gameSession.triggered != null and !gameSession.triggered}" style="margin-top:1.5rem;">
+            <form th:action="@{/game/session/{sessionId}/trigger(sessionId=${sessionId})}" method="post">
+                <button type="submit" class="btn btn-primary">Continue →</button>
+            </form>
+        </div>
+
+        <!-- Case 4: triggered, no choices, no next event shown yet -->
+        <div th:if="${gameSession.terminal != null and !gameSession.terminal and gameSession.triggered != null and gameSession.triggered and gameSession.choices.isEmpty()}" style="margin-top:1.5rem;color:#7a8a7a;">
+            <em>Resolving...</em>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{layouts/base :: footer}"></th:block>
+</body>
+</html>

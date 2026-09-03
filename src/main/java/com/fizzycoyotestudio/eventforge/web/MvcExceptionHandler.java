@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ControllerAdvice(assignableTypes = {DashboardController.class, EventBuilderController.class})
+@ControllerAdvice(assignableTypes = {DashboardController.class, EventBuilderController.class, GamePlayController.class})
 public class MvcExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(MvcExceptionHandler.class);

@@ -1,5 +1,6 @@
 package com.fizzycoyotestudio.eventforge.engine;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -50,7 +51,11 @@ public class EventEngine {
         event.getActions().forEach(action -> action.execute(state));
 
         if (event.hasChoices()) {
-            return EventResult.awaitingChoice(state, event.availableChoices(state));
+            List<Choice> available = event.availableChoices(state);
+            if (available.isEmpty()) {
+                return EventResult.resolved(state, event.getNextEventId());
+            }
+            return EventResult.awaitingChoice(state, available);
         }
 
         return EventResult.resolved(state, event.getNextEventId());
