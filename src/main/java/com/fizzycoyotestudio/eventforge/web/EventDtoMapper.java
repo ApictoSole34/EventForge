@@ -18,6 +18,8 @@ public class EventDtoMapper {
                 .actions(dto.actions())
                 .choices(dto.choices().stream().map(this::toDomain).toList())
                 .nextEventId(dto.nextEventId())
+                .cooldownTicks(dto.cooldownTicks())
+                .nextEventPool(dto.nextEventPool())
                 .build();
     }
 
@@ -29,6 +31,7 @@ public class EventDtoMapper {
                 .condition(dto.condition())
                 .actions(dto.actions())
                 .nextEventId(dto.nextEventId())
+                .nextEventPool(dto.nextEventPool())
                 .build();
     }
 
@@ -40,7 +43,9 @@ public class EventDtoMapper {
                 event.getCondition(),
                 event.getActions(),
                 event.getChoices().stream().map(this::toDto).toList(),
-                event.getNextEventId()
+                event.getNextEventId(),
+                event.getCooldownTicks(),
+                event.getNextEventPool()
         );
     }
 
@@ -51,7 +56,8 @@ public class EventDtoMapper {
                 choice.getDescription(),
                 choice.getCondition(),
                 choice.getActions(),
-                choice.getNextEventId()
+                choice.getNextEventId(),
+                choice.getNextEventPool()
         );
     }
 }

@@ -17,4 +17,7 @@ public class ChoiceFormData {
 
     private List<ActionRowForm> actions = new ArrayList<>();
     private String nextEventId;
+
+    /** Weighted candidates for random transition; takes precedence over nextEventId when non-empty. */
+    private List<PoolEntryForm> nextEventPool = new ArrayList<>();
 }

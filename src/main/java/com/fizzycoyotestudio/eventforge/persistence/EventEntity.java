@@ -42,6 +42,15 @@ public class EventEntity {
     /** Business id of the next Event, or null if this is a terminal event. Not a DB FK on purpose — see ADR note below. */
     private String nextEventBusinessId;
 
+    /** How many ticks must pass after this event fires before it's eligible again as a random-pool candidate. 0 = no cooldown. */
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    private int cooldownTicks;
+
+    /** JSON list of WeightedTransition — the weighted candidates for automatic random transition, if any. */
+    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String nextEventPoolJson;
+
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ChoiceEntity> choices = new ArrayList<>();
 }

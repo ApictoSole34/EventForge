@@ -1,6 +1,5 @@
 package com.fizzycoyotestudio.eventforge.web;
 
-
 import com.fizzycoyotestudio.eventforge.persistence.ScenarioPersistenceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,12 +7,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -42,6 +41,8 @@ class ScenarioControllerTest {
                 {
                   "id": "start",
                   "name": "Start Event",
+                  "cooldownTicks": 0,
+                  "nextEventPool": [],
                   "actions": [
                     {"type": "MODIFY_RESOURCE", "variable": "food", "amount": -1}
                   ],
@@ -65,7 +66,16 @@ class ScenarioControllerTest {
         String requestJson = """
                 {
                   "startEventId": "start",
-                  "events": [{"id": "start", "name": "x"}]
+                  "events": [
+                    {
+                      "id": "start",
+                      "name": "x",
+                      "cooldownTicks": 0,
+                      "nextEventPool": [],
+                      "actions": [],
+                      "choices": []
+                    }
+                  ]
                 }
                 """;
 

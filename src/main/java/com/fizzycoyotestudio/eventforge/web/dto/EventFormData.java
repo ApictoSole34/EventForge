@@ -20,4 +20,10 @@ public class EventFormData {
     private List<ChoiceFormData> choices = new ArrayList<>();
 
     private String nextEventId;
+
+    /** How many ticks must pass after this event fires before it's eligible again as a random-pool candidate elsewhere. */
+    private Integer cooldownTicks;
+
+    /** Weighted candidates for automatic random transition; takes precedence over nextEventId when non-empty. */
+    private List<PoolEntryForm> nextEventPool = new ArrayList<>();
 }

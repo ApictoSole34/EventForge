@@ -67,8 +67,39 @@
         </div>
 
         <div class="card">
+            <div class="card-title" style="font-size:1.1rem;">Random Events &amp; Cooldowns</div>
+
+            <label>Cooldown (ticks)</label><br>
+            <p style="color:#7a8a7a;font-size:0.85rem;margin:0.2rem 0 0.4rem;">
+                Once this event fires, it won't be eligible again as a candidate in anyone's random pool for this many ticks
+                (a tick = one event firing, anywhere in the session). 0 = no cooldown.
+            </p>
+            <input type="number" min="0" step="1" th:field="*{cooldownTicks}" placeholder="0"
+                   style="width:120px;padding:0.5rem;margin-bottom:1rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+
+            <div class="card-title" style="font-size:1rem;margin-top:0.8rem;">Random Next-Event Pool (optional)</div>
+            <p style="color:#7a8a7a;font-size:0.85rem;">
+                If you add candidates here, they take precedence over the plain "Next Event" field below for this event's
+                automatic transition: one is picked at random, weighted by the numbers you give them, from among whichever
+                candidates currently pass their own condition and aren't on cooldown. Leave empty to just use "Next Event".
+            </p>
+            <div id="pool-container">
+                <div class="pool-row" th:each="entry, iter : *{nextEventPool}" style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">
+                    <select th:field="*{nextEventPool[__${iter.index}__].eventId}" style="flex:1;min-width:150px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                        <option value="">-- pick event --</option>
+                        <option th:each="id : ${existingEventIds}" th:value="${id}" th:text="${id}">loot</option>
+                    </select>
+                    <input type="number" step="any" min="0.01" th:field="*{nextEventPool[__${iter.index}__].weight}" placeholder="weight"
+                           style="width:100px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <button type="button" class="remove-row btn btn-outline" style="padding:0.3rem 0.7rem;">Remove</button>
+                </div>
+            </div>
+            <button type="button" id="add-pool-entry" class="btn btn-outline">+ Add Candidate</button>
+        </div>
+
+        <div class="card">
             <div class="card-title" style="font-size:1.1rem;">Choices</div>
-            <p style="color:#7a8a7a;font-size:0.85rem;">Leave empty if this event transitions automatically via "Next Event" below.</p>
+            <p style="color:#7a8a7a;font-size:0.85rem;">Leave empty if this event transitions automatically via "Next Event"/the random pool above.</p>
             <div id="choices-container">
                 <div class="choice-row card" th:each="choice, citer : *{choices}"
                      style="background:#141a1a;margin-top:1rem;">
@@ -84,6 +115,7 @@
                         <button type="button" class="remove-choice btn btn-outline">Remove Choice</button>
                     </div>
                     <div class="choice-actions" style="padding-left:1rem;border-left:2px solid #2a3a2a;">
+                        <div style="font-size:0.8rem;color:#7a8a7a;margin-bottom:0.3rem;">Actions</div>
                         <div class="choice-action-row" th:each="cAction, caiter : ${choice.actions}" style="display:flex;gap:0.5rem;margin-bottom:0.4rem;flex-wrap:wrap;">
                             <select th:field="*{choices[__${citer.index}__].actions[__${caiter.index}__].actionType}" style="padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
                                 <option value="MODIFY_RESOURCE">Modify (+/-)</option>
@@ -97,13 +129,26 @@
                         </div>
                         <button type="button" class="add-choice-action btn btn-outline" style="padding:0.2rem 0.6rem;font-size:0.85rem;">+ Add Action</button>
                     </div>
+                    <div class="choice-pool" style="padding-left:1rem;border-left:2px solid #2a3a2a;margin-top:0.8rem;">
+                        <div style="font-size:0.8rem;color:#7a8a7a;margin-bottom:0.3rem;">Random Next-Event Pool (optional, overrides Next Event above)</div>
+                        <div class="choice-pool-row" th:each="pEntry, piter : ${choice.nextEventPool}" style="display:flex;gap:0.5rem;margin-bottom:0.4rem;flex-wrap:wrap;">
+                            <select th:field="*{choices[__${citer.index}__].nextEventPool[__${piter.index}__].eventId}" style="flex:1;min-width:120px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                                <option value="">-- pick event --</option>
+                                <option th:each="id : ${existingEventIds}" th:value="${id}" th:text="${id}">loot</option>
+                            </select>
+                            <input type="number" step="any" min="0.01" th:field="*{choices[__${citer.index}__].nextEventPool[__${piter.index}__].weight}" placeholder="weight"
+                                   style="width:90px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                            <button type="button" class="remove-row btn btn-outline" style="padding:0.2rem 0.6rem;">Remove</button>
+                        </div>
+                        <button type="button" class="add-choice-pool-entry btn btn-outline" style="padding:0.2rem 0.6rem;font-size:0.85rem;">+ Add Candidate</button>
+                    </div>
                 </div>
             </div>
             <button type="button" id="add-choice" class="btn btn-outline" style="margin-top:0.8rem;">+ Add Choice</button>
         </div>
 
         <div class="card">
-            <div class="card-title" style="font-size:1.1rem;">Next Event (used only when there are no choices)</div>
+            <div class="card-title" style="font-size:1.1rem;">Next Event (fallback — used when there's no random pool, or none of its candidates are currently eligible)</div>
             <select th:field="*{nextEventId}" style="padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
                 <option value="">(END — terminal event)</option>
                 <option th:each="id : ${existingEventIds}" th:value="${id}" th:text="${id}">loot</option>
@@ -118,6 +163,16 @@
     <script th:inline="javascript">
         const nextEventOptions = /*[[${existingEventIds}]]*/ [];
 
+        function eventOptionsHtml() {
+            return ['<option value="">-- pick event --</option>']
+                .concat(nextEventOptions.map(id => `<option value="${id}">${id}</option>`)).join('');
+        }
+
+        function endOptionsHtml() {
+            return ['<option value="">(END)</option>']
+                .concat(nextEventOptions.map(id => `<option value="${id}">${id}</option>`)).join('');
+        }
+
         function actionRowHtml() {
             return `<div class="action-row" style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">
                 <select name="actions[0].actionType" style="padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
@@ -130,18 +185,29 @@
             </div>`;
         }
 
+        function poolRowHtml() {
+            return `<div class="pool-row" style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">
+                <select name="nextEventPool[0].eventId" style="flex:1;min-width:150px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">${eventOptionsHtml()}</select>
+                <input type="number" step="any" min="0.01" name="nextEventPool[0].weight" placeholder="weight" style="width:100px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <button type="button" class="remove-row btn btn-outline" style="padding:0.3rem 0.7rem;">Remove</button>
+            </div>`;
+        }
+
         function choiceRowHtml() {
-            const optionsHtml = ['<option value="">(END)</option>']
-                .concat(nextEventOptions.map(id => `<option value="${id}">${id}</option>`)).join('');
             return `<div class="choice-row card" style="background:#141a1a;margin-top:1rem;">
                 <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.6rem;">
                     <input type="text" name="choices[0].id" placeholder="choice id" style="flex:1;min-width:140px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
                     <input type="text" name="choices[0].label" placeholder="Label shown to player" style="flex:1;min-width:140px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
-                    <select name="choices[0].nextEventId" style="padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">${optionsHtml}</select>
+                    <select name="choices[0].nextEventId" style="padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">${endOptionsHtml()}</select>
                     <button type="button" class="remove-choice btn btn-outline">Remove Choice</button>
                 </div>
                 <div class="choice-actions" style="padding-left:1rem;border-left:2px solid #2a3a2a;">
+                    <div style="font-size:0.8rem;color:#7a8a7a;margin-bottom:0.3rem;">Actions</div>
                     <button type="button" class="add-choice-action btn btn-outline" style="padding:0.2rem 0.6rem;font-size:0.85rem;">+ Add Action</button>
+                </div>
+                <div class="choice-pool" style="padding-left:1rem;border-left:2px solid #2a3a2a;margin-top:0.8rem;">
+                    <div style="font-size:0.8rem;color:#7a8a7a;margin-bottom:0.3rem;">Random Next-Event Pool (optional, overrides Next Event above)</div>
+                    <button type="button" class="add-choice-pool-entry btn btn-outline" style="padding:0.2rem 0.6rem;font-size:0.85rem;">+ Add Candidate</button>
                 </div>
             </div>`;
         }
@@ -154,6 +220,14 @@
                 </select>
                 <input type="text" name="choices[0].actions[0].variable" placeholder="variable" style="flex:1;min-width:100px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
                 <input type="number" step="any" name="choices[0].actions[0].amount" placeholder="amount" style="width:90px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <button type="button" class="remove-row btn btn-outline" style="padding:0.2rem 0.6rem;">Remove</button>
+            </div>`;
+        }
+
+        function choicePoolRowHtml() {
+            return `<div class="choice-pool-row" style="display:flex;gap:0.5rem;margin-bottom:0.4rem;flex-wrap:wrap;">
+                <select name="choices[0].nextEventPool[0].eventId" style="flex:1;min-width:120px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">${eventOptionsHtml()}</select>
+                <input type="number" step="any" min="0.01" name="choices[0].nextEventPool[0].weight" placeholder="weight" style="width:90px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
                 <button type="button" class="remove-row btn btn-outline" style="padding:0.2rem 0.6rem;">Remove</button>
             </div>`;
         }
@@ -172,19 +246,36 @@
                 });
             });
 
+            document.querySelectorAll('#pool-container > .pool-row').forEach((row, idx) => {
+                row.querySelectorAll('[name^="nextEventPool["]').forEach(input => {
+                    input.name = input.name.replace(/^nextEventPool\[\d+\]/, `nextEventPool[${idx}]`);
+                });
+            });
+
             document.querySelectorAll('#choices-container > .choice-row').forEach((choiceRow, cIdx) => {
                 choiceRow.querySelectorAll('[name^="choices["]').forEach(input => {
-                    const nested = input.name.match(/^choices\[\d+\]\.actions\[(\d+)\]\.(.+)$/);
-                    input.name = nested
-                        ? `choices[${cIdx}].actions[${nested[1]}].${nested[2]}`
-                        : input.name.replace(/^choices\[\d+\]/, `choices[${cIdx}]`);
+                    const nestedAction = input.name.match(/^choices\[\d+\]\.actions\[(\d+)\]\.(.+)$/);
+                    const nestedPool = input.name.match(/^choices\[\d+\]\.nextEventPool\[(\d+)\]\.(.+)$/);
+                    if (nestedAction) {
+                        input.name = `choices[${cIdx}].actions[${nestedAction[1]}].${nestedAction[2]}`;
+                    } else if (nestedPool) {
+                        input.name = `choices[${cIdx}].nextEventPool[${nestedPool[1]}].${nestedPool[2]}`;
+                    } else {
+                        input.name = input.name.replace(/^choices\[\d+\]/, `choices[${cIdx}]`);
+                    }
                 });
 
-                const actionsDiv = choiceRow.querySelector('.choice-actions');
-                const actionRows = actionsDiv.querySelectorAll('.choice-action-row');
+                const actionRows = choiceRow.querySelector('.choice-actions').querySelectorAll('.choice-action-row');
                 actionRows.forEach((aRow, aIdx) => {
                     aRow.querySelectorAll('[name^="choices["]').forEach(input => {
                         input.name = input.name.replace(/^choices\[\d+\]\.actions\[\d+\]/, `choices[${cIdx}].actions[${aIdx}]`);
+                    });
+                });
+
+                const poolRows = choiceRow.querySelector('.choice-pool').querySelectorAll('.choice-pool-row');
+                poolRows.forEach((pRow, pIdx) => {
+                    pRow.querySelectorAll('[name^="choices["]').forEach(input => {
+                        input.name = input.name.replace(/^choices\[\d+\]\.nextEventPool\[\d+\]/, `choices[${cIdx}].nextEventPool[${pIdx}]`);
                     });
                 });
             });
@@ -195,6 +286,11 @@
             reindexAll();
         });
 
+        document.getElementById('add-pool-entry').addEventListener('click', () => {
+            document.getElementById('pool-container').insertAdjacentHTML('beforeend', poolRowHtml());
+            reindexAll();
+        });
+
         document.getElementById('add-choice').addEventListener('click', () => {
             document.getElementById('choices-container').insertAdjacentHTML('beforeend', choiceRowHtml());
             reindexAll();
@@ -202,7 +298,7 @@
 
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('remove-row')) {
-                e.target.closest('.action-row, .choice-action-row').remove();
+                e.target.closest('.action-row, .pool-row, .choice-action-row, .choice-pool-row').remove();
                 reindexAll();
             }
             if (e.target.classList.contains('remove-choice')) {
@@ -213,6 +309,12 @@
                 const choiceRow = e.target.closest('.choice-row');
                 const actionsDiv = choiceRow.querySelector('.choice-actions');
                 actionsDiv.querySelector('.add-choice-action').insertAdjacentHTML('beforebegin', choiceActionRowHtml());
+                reindexAll();
+            }
+            if (e.target.classList.contains('add-choice-pool-entry')) {
+                const choiceRow = e.target.closest('.choice-row');
+                const poolDiv = choiceRow.querySelector('.choice-pool');
+                poolDiv.querySelector('.add-choice-pool-entry').insertAdjacentHTML('beforebegin', choicePoolRowHtml());
                 reindexAll();
             }
         });

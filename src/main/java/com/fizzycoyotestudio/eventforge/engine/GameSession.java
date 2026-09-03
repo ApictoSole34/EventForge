@@ -2,7 +2,10 @@ package com.fizzycoyotestudio.eventforge.engine;
 
 import lombok.Getter;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -13,6 +16,16 @@ import java.util.Objects;
  * This class is intentionally game-agnostic — it works the same way
  * whether the events came from Zombie Shelter, a fantasy dungeon, or
  * any other game built on EventForge.
+ *
+ * <p><b>Ticks &amp; cooldowns:</b> GameSession is where the "tick"
+ * concept actually lives. Every time an event fires (its condition
+ * passed and its actions ran — i.e. {@code EventResult.isTriggered()}),
+ * the tick counter advances by one and that event's id is stamped with
+ * the tick it fired on. When resolving a weighted nextEventPool
+ * (Event or Choice), a candidate is only eligible if the registry
+ * contains it, its own condition currently holds, AND it isn't still
+ * within its {@code cooldownTicks} window since it last fired in THIS
+ * session.
  */
 public final class GameSession {
 
@@ -30,11 +43,29 @@ public final class GameSession {
     @Getter
     private boolean terminal = false;
 
+    @Getter
+    private int currentTick = 0;
+
+    private final Map<String, Integer> lastTriggeredTick = new HashMap<>();
+
     public GameSession(EventEngine engine, EventRegistry registry, GameState state, String startEventId) {
+        this(engine, registry, state, startEventId, 0, Map.of());
+    }
+
+    /** Full-state constructor — used when resuming a persisted session that already has cooldown/tick history. */
+    public GameSession(EventEngine engine, EventRegistry registry, GameState state, String startEventId,
+                       int currentTick, Map<String, Integer> lastTriggeredTick) {
         this.engine = Objects.requireNonNull(engine);
         this.registry = Objects.requireNonNull(registry);
         this.state = Objects.requireNonNull(state);
         this.currentEvent = registry.getOrThrow(startEventId);
+        this.currentTick = currentTick;
+        this.lastTriggeredTick.putAll(lastTriggeredTick);
+    }
+
+    /** Read-only view of "which event last fired on which tick", e.g. for persistence or debugging. */
+    public Map<String, Integer> getLastTriggeredTick() {
+        return Collections.unmodifiableMap(lastTriggeredTick);
     }
 
     /** Triggers the current event: applies its actions, and either offers choices or advances automatically. */
@@ -42,11 +73,14 @@ public final class GameSession {
         if (terminal) {
             throw new IllegalStateException("Session is terminal; no further events.");
         }
-        EventResult result = engine.execute(currentEvent, state);
+        EventResult result = engine.execute(currentEvent, state, this::isEligibleCandidate);
         if (!result.isTriggered()) {
             pendingChoices = List.of();
             return result;
         }
+
+        recordTrigger(currentEvent.getId());
+
         if (result.isAwaitingChoice()) {
             pendingChoices = result.getOfferedChoices();
         } else {
@@ -68,7 +102,7 @@ public final class GameSession {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Choice '" + choiceId + "' is not currently offered"));
 
-        EventResult result = engine.resolveChoice(choice, state);
+        EventResult result = engine.resolveChoice(choice, state, this::isEligibleCandidate);
         pendingChoices = List.of();
         if (result.hasNextEvent()) {
             advanceTo(result.getNextEventId());
@@ -76,6 +110,31 @@ public final class GameSession {
             terminal = true;
         }
         return result;
+    }
+
+    private void recordTrigger(String eventId) {
+        currentTick++;
+        lastTriggeredTick.put(eventId, currentTick);
+    }
+
+    private boolean isEligibleCandidate(String eventId) {
+        if (!registry.contains(eventId)) {
+            return false;
+        }
+        Event candidate = registry.getOrThrow(eventId);
+        return candidate.canTrigger(state) && !isOnCooldown(candidate);
+    }
+
+    private boolean isOnCooldown(Event candidate) {
+        int cooldown = candidate.getCooldownTicks();
+        if (cooldown <= 0) {
+            return false;
+        }
+        Integer lastFired = lastTriggeredTick.get(candidate.getId());
+        if (lastFired == null) {
+            return false;
+        }
+        return (currentTick - lastFired) < cooldown;
     }
 
     private void advanceTo(String nextEventId) {

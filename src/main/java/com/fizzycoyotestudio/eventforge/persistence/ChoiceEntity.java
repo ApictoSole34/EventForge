@@ -32,6 +32,11 @@ public class ChoiceEntity {
 
     private String nextEventBusinessId;
 
+    /** JSON list of WeightedTransition — the weighted candidates for random transition, if any. */
+    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String nextEventPoolJson;
+
     @ManyToOne
     @JoinColumn(name = "event_id")
     private EventEntity event;

@@ -35,6 +35,8 @@
                         <span class="badge" style="background-color: #2a2a3a; color: #b0b0d0;" th:if="${event.condition.class.simpleName != 'AlwaysTrueCondition'}" th:text="'condition'">condition</span>
                         <span class="badge" style="background-color: #2a3a2a; color: #b0d0b0;" th:if="${event.actions.size() > 0}" th:text="'actions: ' + ${event.actions.size()}">actions: 2</span>
                         <span class="badge" style="background-color: #3a2a2a; color: #d0b0b0;" th:if="${event.choices.size() > 0}" th:text="'choices: ' + ${event.choices.size()}">choices: 2</span>
+                        <span class="badge" style="background-color: #3a3a1a; color: #d0d0a0;" th:if="${event.cooldownTicks > 0}" th:text="'cooldown: ' + ${event.cooldownTicks} + ' ticks'">cooldown: 3 ticks</span>
+                        <span class="badge" style="background-color: #1a2a3a; color: #a0c0d0;" th:if="${event.nextEventPool.size() > 0}" th:text="'random pool: ' + ${event.nextEventPool.size()} + ' candidates'">random pool: 3 candidates</span>
                     </div>
                     <span style="color: #6a8a6a; font-size: 0.85rem;" th:text="'next: ' + (${event.nextEventId} ?: 'END')">next: loot</span>
                 </div>
@@ -42,11 +44,27 @@
                 <div style="margin-top: 0.5rem; font-weight: 500;" th:text="${event.name}">Zombie Attack</div>
                 <div style="color: #8a9a8a; font-size: 0.9rem;" th:text="${event.description}">Description</div>
 
+                <div th:if="${!event.nextEventPool.isEmpty()}" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #2a3a2a;">
+                    <div style="font-size: 0.9rem; font-weight: 600; color: #b0c0d0; margin-bottom: 0.5rem;">Random next-event candidates:</div>
+                    <div th:each="candidate : ${event.nextEventPool}" style="display: flex; justify-content: space-between; align-items: center; background-color: #141a1a; padding: 0.4rem 0.8rem; border-radius: 4px; margin-bottom: 0.3rem; font-size: 0.9rem;">
+                        <span th:text="${candidate.eventId}">loot</span>
+                        <span style="color: #6a8a9a; font-size: 0.8rem;" th:text="'weight ' + ${candidate.weight}">weight 1.0</span>
+                    </div>
+                </div>
+
                 <div th:if="${!event.choices.isEmpty()}" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #2a3a2a;">
                     <div style="font-size: 0.9rem; font-weight: 600; color: #b0c0b0; margin-bottom: 0.5rem;">Choices:</div>
-                    <div th:each="choice : ${event.choices}" style="display: flex; justify-content: space-between; align-items: center; background-color: #141a1a; padding: 0.4rem 0.8rem; border-radius: 4px; margin-bottom: 0.3rem; font-size: 0.9rem;">
-                        <span th:text="${choice.label} + ' (' + ${choice.id} + ')'">Push Back (push-back)</span>
-                        <span style="color: #6a8a6a; font-size: 0.8rem;" th:text="'→ ' + (${choice.nextEventId} ?: 'END')">→ loot</span>
+                    <div th:each="choice : ${event.choices}" style="background-color: #141a1a; padding: 0.4rem 0.8rem; border-radius: 4px; margin-bottom: 0.3rem; font-size: 0.9rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span th:text="${choice.label} + ' (' + ${choice.id} + ')'">Push Back (push-back)</span>
+                            <span style="color: #6a8a6a; font-size: 0.8rem;" th:text="'→ ' + (${choice.nextEventId} ?: 'END')">→ loot</span>
+                        </div>
+                        <div th:if="${!choice.nextEventPool.isEmpty()}" style="margin-top:0.4rem;padding-left:0.8rem;border-left:2px solid #2a3a2a;">
+                            <div th:each="candidate : ${choice.nextEventPool}" style="display:flex;justify-content:space-between;font-size:0.8rem;color:#8aa0c0;">
+                                <span th:text="'→ ' + ${candidate.eventId}">→ loot</span>
+                                <span th:text="'weight ' + ${candidate.weight}">weight 1.0</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

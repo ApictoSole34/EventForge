@@ -45,6 +45,26 @@ public class GameSessionEntity {
     @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean terminal;
 
+    /**
+     * How many events have fired in this session so far — the "clock"
+     * that Event#cooldownTicks is measured against. Incremented once per
+     * actually-triggered event (see GameSessionPersistenceService).
+     * Defaults to 0 for old rows predating this column, which is exactly
+     * the right starting value.
+     */
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    private int currentTick;
+
+    /**
+     * JSON map of eventBusinessId -> the tick it last fired on, used to
+     * evaluate cooldowns when picking from a weighted nextEventPool.
+     * Null/absent (old rows) is treated as "nothing on cooldown yet" by
+     * CooldownJsonMapper.
+     */
+    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String cooldownJson;
+
     /** Nullable for the same reason as playerId — old rows just won't have one. */
     private Instant createdAt;
 

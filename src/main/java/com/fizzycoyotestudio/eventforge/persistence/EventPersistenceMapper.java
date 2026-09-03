@@ -24,6 +24,8 @@ public class EventPersistenceMapper {
         entity.setConditionJson(json.writeCondition(event.getCondition()));
         entity.setActionsJson(json.writeActions(event.getActions()));
         entity.setNextEventBusinessId(event.getNextEventId());
+        entity.setCooldownTicks(event.getCooldownTicks());
+        entity.setNextEventPoolJson(json.writePool(event.getNextEventPool()));
 
         List<ChoiceEntity> choiceEntities = event.getChoices().stream()
                 .map(choice -> toEntity(choice, entity))
@@ -41,6 +43,7 @@ public class EventPersistenceMapper {
         entity.setConditionJson(json.writeCondition(choice.getCondition()));
         entity.setActionsJson(json.writeActions(choice.getActions()));
         entity.setNextEventBusinessId(choice.getNextEventId());
+        entity.setNextEventPoolJson(json.writePool(choice.getNextEventPool()));
         entity.setEvent(event);
         return entity;
     }
@@ -54,6 +57,8 @@ public class EventPersistenceMapper {
                 .actions(json.readActions(entity.getActionsJson()))
                 .choices(entity.getChoices().stream().map(this::toDomain).toList())
                 .nextEventId(entity.getNextEventBusinessId())
+                .cooldownTicks(entity.getCooldownTicks())
+                .nextEventPool(json.readPool(entity.getNextEventPoolJson()))
                 .build();
     }
 
@@ -65,6 +70,7 @@ public class EventPersistenceMapper {
                 .condition(json.readCondition(entity.getConditionJson()))
                 .actions(json.readActions(entity.getActionsJson()))
                 .nextEventId(entity.getNextEventBusinessId())
+                .nextEventPool(json.readPool(entity.getNextEventPoolJson()))
                 .build();
     }
 }

@@ -20,6 +20,8 @@ public class EventFormMapper {
                 .actions(toActions(form.getActions()))
                 .choices(form.getChoices().stream().map(this::toDomain).toList())
                 .nextEventId(blankToNull(form.getNextEventId()))
+                .cooldownTicks(form.getCooldownTicks() != null ? form.getCooldownTicks() : 0)
+                .nextEventPool(toPool(form.getNextEventPool()))
                 .build();
     }
 
@@ -31,6 +33,7 @@ public class EventFormMapper {
                 .condition(toCondition(form.getConditionVariable(), form.getConditionOperator(), form.getConditionValue()))
                 .actions(toActions(form.getActions()))
                 .nextEventId(blankToNull(form.getNextEventId()))
+                .nextEventPool(toPool(form.getNextEventPool()))
                 .build();
     }
 
@@ -44,6 +47,8 @@ public class EventFormMapper {
         form.setActions(toActionRows(event.getActions()));
         form.setChoices(event.getChoices().stream().map(this::toFormData).toList());
         form.setNextEventId(event.getNextEventId());
+        form.setCooldownTicks(event.getCooldownTicks());
+        form.setNextEventPool(toPoolRows(event.getNextEventPool()));
         return form;
     }
 
@@ -55,6 +60,7 @@ public class EventFormMapper {
         fillCondition(choice.getCondition(), form::setConditionVariable, form::setConditionOperator, form::setConditionValue);
         form.setActions(toActionRows(choice.getActions()));
         form.setNextEventId(choice.getNextEventId());
+        form.setNextEventPool(toPoolRows(choice.getNextEventPool()));
         return form;
     }
 
@@ -94,6 +100,23 @@ public class EventFormMapper {
                 row.setVariable(s.getVariable());
                 row.setAmount(s.getValue());
             }
+            return row;
+        }).toList();
+    }
+
+    /** Blank/incomplete rows (e.g. an "Add Candidate" the user didn't fill in) are silently dropped, matching the actions-row convention above. */
+    private List<WeightedTransition> toPool(List<PoolEntryForm> rows) {
+        return rows.stream()
+                .filter(r -> StringUtils.hasText(r.getEventId()) && r.getWeight() != null && r.getWeight() > 0)
+                .map(r -> new WeightedTransition(r.getEventId(), r.getWeight()))
+                .toList();
+    }
+
+    private List<PoolEntryForm> toPoolRows(List<WeightedTransition> pool) {
+        return pool.stream().map(t -> {
+            PoolEntryForm row = new PoolEntryForm();
+            row.setEventId(t.getEventId());
+            row.setWeight(t.getWeight());
             return row;
         }).toList();
     }

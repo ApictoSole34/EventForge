@@ -8,7 +8,10 @@
     <h1 style="font-size:1.6rem;margin-bottom:1rem;" th:text="'🎮 ' + ${gameSession.scenarioName}">🎮 Scenario Name</h1>
 
     <div class="card" style="background-color:#111818;border-color:#1a3a1a;margin-bottom:1.5rem;">
-        <div style="font-weight:600;color:#b0d0b0;margin-bottom:0.5rem;">Shelter Status</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-weight:600;color:#b0d0b0;margin-bottom:0.5rem;">Shelter Status</div>
+            <span class="badge" style="background-color:#1a2a3a;color:#a0c0d0;" th:text="'Tick: ' + ${gameSession.currentTick}">Tick: 0</span>
+        </div>
         <div style="display:flex;flex-wrap:wrap;gap:0.5rem 1.2rem;">
             <span th:each="entry : ${gameSession.state}" style="background-color:#1a2a1a;padding:0.2rem 0.8rem;border-radius:12px;font-size:0.85rem;">
                 <span th:text="${entry.key} + ':'" style="color:#7a9a7a;"></span>
