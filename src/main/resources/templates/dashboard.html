@@ -5,10 +5,13 @@
 <th:block th:replace="~{layouts/base :: header}"></th:block>
 
 <div th:fragment="content">
-    <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">📋 Scenarios</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+        <h1 style="font-size: 2rem;">📋 Scenarios</h1>
+        <a href="/scenarios/create" class="btn btn-primary">+ Create Scenario</a>
+    </div>
 
     <div th:if="${scenarios.isEmpty()}" class="card">
-        <p style="color: #8a9a8a;">No scenarios found. Create your first scenario via the API or builder.</p>
+        <p style="color: #8a9a8a;">No scenarios found. <a href="/scenarios/create" style="color:#b0d4b0;">Create your first scenario</a> to get started.</p>
     </div>
 
     <div class="grid-2" th:each="scenario : ${scenarios}">
@@ -19,7 +22,8 @@
                 <span class="badge" th:text="'Events: ' + ${scenario.events.size()}">Events: 5</span>
                 <span class="badge" th:text="'Start: ' + ${scenario.startEventId}">Start: zombie-attack</span>
             </div>
-            <div style="margin-top: 1rem;">
+            <div style="margin-top: 1rem; display: flex; gap: 0.6rem; flex-wrap: wrap;">
+                <a th:href="'/game/start/' + ${scenario.id}" class="btn btn-primary">▶ Play</a>
                 <a th:href="'/scenarios/' + ${scenario.id}" class="btn btn-outline">View Details →</a>
             </div>
         </div>

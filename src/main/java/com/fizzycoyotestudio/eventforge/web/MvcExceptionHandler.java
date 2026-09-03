@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ControllerAdvice(assignableTypes = {DashboardController.class, EventBuilderController.class, GamePlayController.class})
+@ControllerAdvice(assignableTypes = {DashboardController.class, EventBuilderController.class, GamePlayController.class, ScenarioBuilderController.class})
 public class MvcExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(MvcExceptionHandler.class);
@@ -42,4 +42,5 @@ public class MvcExceptionHandler {
         model.addAttribute("message", "Something went wrong: " + ex.getMessage());
         return "error";
     }
+
 }

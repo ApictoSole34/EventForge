@@ -11,9 +11,10 @@
             <h1 style="font-size: 2rem; margin-top: 0.5rem;" th:text="${scenario.name}">Scenario Name</h1>
             <p style="color: #8a9a8a;" th:text="${scenario.description} ?: 'No description'">Description</p>
         </div>
-        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
             <span class="badge" th:text="'Start: ' + ${scenario.startEventId}">Start: zombie-attack</span>
             <span class="badge" th:text="'Events: ' + ${scenario.events.size()}">Events: 5</span>
+            <a th:href="'/game/start/' + ${scenario.id}" class="btn btn-primary">▶ Play</a>
         </div>
     </div>
 

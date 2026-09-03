@@ -71,7 +71,7 @@
             <p style="color:#7a8a7a;font-size:0.85rem;">Leave empty if this event transitions automatically via "Next Event" below.</p>
             <div id="choices-container">
                 <div class="choice-row card" th:each="choice, citer : *{choices}"
-                     style="background:#141a1a;margin-top:1rem;" th:attr="data-choice-index=${citer.index}">
+                     style="background:#141a1a;margin-top:1rem;">
                     <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.6rem;">
                         <input type="text" th:field="*{choices[__${citer.index}__].id}" placeholder="choice id"
                                style="flex:1;min-width:140px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
@@ -83,7 +83,7 @@
                         </select>
                         <button type="button" class="remove-choice btn btn-outline">Remove Choice</button>
                     </div>
-                    <div class="choice-actions" style="padding-left:1rem;border-left:2px solid #2a3a2a;" th:attr="data-action-index=${choice.actions.size()}">
+                    <div class="choice-actions" style="padding-left:1rem;border-left:2px solid #2a3a2a;">
                         <div class="choice-action-row" th:each="cAction, caiter : ${choice.actions}" style="display:flex;gap:0.5rem;margin-bottom:0.4rem;flex-wrap:wrap;">
                             <select th:field="*{choices[__${citer.index}__].actions[__${caiter.index}__].actionType}" style="padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
                                 <option value="MODIFY_RESOURCE">Modify (+/-)</option>
@@ -116,65 +116,104 @@
     </form>
 
     <script th:inline="javascript">
-        let actionIndex = 0;
-        let choiceIndex = 0;
-        const nextEventOptions = [];
+        const nextEventOptions = /*[[${existingEventIds}]]*/ [];
 
-        function actionRowHtml(prefix, index) {
+        function actionRowHtml() {
             return `<div class="action-row" style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">
-                <select name="${prefix}[${index}].actionType" style="padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <select name="actions[0].actionType" style="padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
                     <option value="MODIFY_RESOURCE">Modify (+/-)</option>
                     <option value="SET_RESOURCE">Set to</option>
                 </select>
-                <input type="text" name="${prefix}[${index}].variable" placeholder="variable" style="flex:1;min-width:120px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
-                <input type="number" step="any" name="${prefix}[${index}].amount" placeholder="amount" style="width:100px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <input type="text" name="actions[0].variable" placeholder="variable" style="flex:1;min-width:120px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <input type="number" step="any" name="actions[0].amount" placeholder="amount" style="width:100px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
                 <button type="button" class="remove-row btn btn-outline" style="padding:0.3rem 0.7rem;">Remove</button>
             </div>`;
         }
 
-        document.getElementById('add-action').addEventListener('click', () => {
-            document.getElementById('actions-container').insertAdjacentHTML('beforeend', actionRowHtml('actions', actionIndex));
-            actionIndex++;
-        });
-
-        document.getElementById('add-choice').addEventListener('click', () => {
-            const idx = choiceIndex;
+        function choiceRowHtml() {
             const optionsHtml = ['<option value="">(END)</option>']
                 .concat(nextEventOptions.map(id => `<option value="${id}">${id}</option>`)).join('');
-            const html = `<div class="choice-row card" data-choice-index="${idx}" style="background:#141a1a;margin-top:1rem;">
+            return `<div class="choice-row card" style="background:#141a1a;margin-top:1rem;">
                 <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.6rem;">
-                    <input type="text" name="choices[${idx}].id" placeholder="choice id" style="flex:1;min-width:140px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
-                    <input type="text" name="choices[${idx}].label" placeholder="Label shown to player" style="flex:1;min-width:140px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
-                    <select name="choices[${idx}].nextEventId" style="padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">${optionsHtml}</select>
+                    <input type="text" name="choices[0].id" placeholder="choice id" style="flex:1;min-width:140px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <input type="text" name="choices[0].label" placeholder="Label shown to player" style="flex:1;min-width:140px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <select name="choices[0].nextEventId" style="padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">${optionsHtml}</select>
                     <button type="button" class="remove-choice btn btn-outline">Remove Choice</button>
                 </div>
-                <div class="choice-actions" style="padding-left:1rem;border-left:2px solid #2a3a2a;" data-action-index="0">
+                <div class="choice-actions" style="padding-left:1rem;border-left:2px solid #2a3a2a;">
                     <button type="button" class="add-choice-action btn btn-outline" style="padding:0.2rem 0.6rem;font-size:0.85rem;">+ Add Action</button>
                 </div>
             </div>`;
-            document.getElementById('choices-container').insertAdjacentHTML('beforeend', html);
-            choiceIndex++;
+        }
+
+        function choiceActionRowHtml() {
+            return `<div class="choice-action-row" style="display:flex;gap:0.5rem;margin-bottom:0.4rem;flex-wrap:wrap;">
+                <select name="choices[0].actions[0].actionType" style="padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <option value="MODIFY_RESOURCE">Modify (+/-)</option>
+                    <option value="SET_RESOURCE">Set to</option>
+                </select>
+                <input type="text" name="choices[0].actions[0].variable" placeholder="variable" style="flex:1;min-width:100px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <input type="number" step="any" name="choices[0].actions[0].amount" placeholder="amount" style="width:90px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <button type="button" class="remove-row btn btn-outline" style="padding:0.2rem 0.6rem;">Remove</button>
+            </div>`;
+        }
+
+        /**
+         * Spring binds List<T> form fields by consecutive index (0, 1, 2, ...).
+         * Removing a row from the middle of the DOM leaves a gap in the "name"
+         * attributes (e.g. actions[0], actions[2] with no actions[1]), which
+         * breaks binding. We re-run this after every add/remove to keep every
+         * input's name in sync with its row's current position.
+         */
+        function reindexAll() {
+            document.querySelectorAll('#actions-container > .action-row').forEach((row, idx) => {
+                row.querySelectorAll('[name^="actions["]').forEach(input => {
+                    input.name = input.name.replace(/^actions\[\d+\]/, `actions[${idx}]`);
+                });
+            });
+
+            document.querySelectorAll('#choices-container > .choice-row').forEach((choiceRow, cIdx) => {
+                choiceRow.querySelectorAll('[name^="choices["]').forEach(input => {
+                    const nested = input.name.match(/^choices\[\d+\]\.actions\[(\d+)\]\.(.+)$/);
+                    input.name = nested
+                        ? `choices[${cIdx}].actions[${nested[1]}].${nested[2]}`
+                        : input.name.replace(/^choices\[\d+\]/, `choices[${cIdx}]`);
+                });
+
+                const actionsDiv = choiceRow.querySelector('.choice-actions');
+                const actionRows = actionsDiv.querySelectorAll('.choice-action-row');
+                actionRows.forEach((aRow, aIdx) => {
+                    aRow.querySelectorAll('[name^="choices["]').forEach(input => {
+                        input.name = input.name.replace(/^choices\[\d+\]\.actions\[\d+\]/, `choices[${cIdx}].actions[${aIdx}]`);
+                    });
+                });
+            });
+        }
+
+        document.getElementById('add-action').addEventListener('click', () => {
+            document.getElementById('actions-container').insertAdjacentHTML('beforeend', actionRowHtml());
+            reindexAll();
+        });
+
+        document.getElementById('add-choice').addEventListener('click', () => {
+            document.getElementById('choices-container').insertAdjacentHTML('beforeend', choiceRowHtml());
+            reindexAll();
         });
 
         document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('remove-row')) e.target.closest('.action-row').remove();
-            if (e.target.classList.contains('remove-choice')) e.target.closest('.choice-row').remove();
+            if (e.target.classList.contains('remove-row')) {
+                e.target.closest('.action-row, .choice-action-row').remove();
+                reindexAll();
+            }
+            if (e.target.classList.contains('remove-choice')) {
+                e.target.closest('.choice-row').remove();
+                reindexAll();
+            }
             if (e.target.classList.contains('add-choice-action')) {
                 const choiceRow = e.target.closest('.choice-row');
-                const cIdx = choiceRow.dataset.choiceIndex;
                 const actionsDiv = choiceRow.querySelector('.choice-actions');
-                const aIdx = parseInt(actionsDiv.dataset.actionIndex || '0');
-                const html = `<div class="choice-action-row" style="display:flex;gap:0.5rem;margin-bottom:0.4rem;flex-wrap:wrap;">
-                    <select name="choices[${cIdx}].actions[${aIdx}].actionType" style="padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
-                        <option value="MODIFY_RESOURCE">Modify (+/-)</option>
-                        <option value="SET_RESOURCE">Set to</option>
-                    </select>
-                    <input type="text" name="choices[${cIdx}].actions[${aIdx}].variable" placeholder="variable" style="flex:1;min-width:100px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
-                    <input type="number" step="any" name="choices[${cIdx}].actions[${aIdx}].amount" placeholder="amount" style="width:90px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
-                    <button type="button" class="remove-row btn btn-outline" style="padding:0.2rem 0.6rem;">Remove</button>
-                </div>`;
-                actionsDiv.querySelector('.add-choice-action').insertAdjacentHTML('beforebegin', html);
-                actionsDiv.dataset.actionIndex = aIdx + 1;
+                actionsDiv.querySelector('.add-choice-action').insertAdjacentHTML('beforebegin', choiceActionRowHtml());
+                reindexAll();
             }
         });
     </script>
