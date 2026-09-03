@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layouts/base :: head(pageTitle='My Games')}"></head>
+<body>
+<th:block th:replace="~{layouts/base :: header}"></th:block>
+
+<div th:fragment="content">
+    <h1 style="font-size: 2rem; margin-bottom: 1.5rem;">🎮 My Games</h1>
+
+    <div th:if="${games.isEmpty()}" class="card">
+        <p style="color: #8a9a8a;">No games yet. <a href="/dashboard" style="color:#b0d4b0;">Pick a scenario</a> to start playing.</p>
+    </div>
+
+    <div class="grid-2" th:each="game : ${games}">
+        <div class="card">
+            <div class="card-title" th:text="${game.scenarioName}">Scenario Name</div>
+            <div class="card-subtitle" th:text="'Currently at: ' + ${game.currentEventName}">Currently at: ...</div>
+            <div style="margin-top: 0.8rem; display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center;">
+                <span th:if="${!game.terminal}" class="badge" style="background-color:#2a4a2a;color:#b0d4b0;">In Progress</span>
+                <span th:if="${game.terminal}" class="badge" style="background-color:#3a2a2a;color:#d0b0b0;">Finished</span>
+                <span style="color:#6a8a6a;font-size:0.8rem;" th:text="'Last played: ' + ${game.lastPlayedAt}">Last played: ...</span>
+            </div>
+            <div style="margin-top: 1rem; display: flex; gap: 0.6rem; flex-wrap: wrap;">
+                <a th:href="'/game/session/' + ${game.sessionId}" class="btn btn-primary"
+                   th:text="${game.terminal} ? 'View Result' : 'Continue →'">Continue →</a>
+                <form th:action="'/game/session/' + ${game.sessionId} + '/delete'" method="post"
+                      onsubmit="return confirm('Delete this game?');" style="display:inline;">
+                    <button type="submit" class="btn btn-outline" style="color:#d08080;">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block th:replace="~{layouts/base :: footer}"></th:block>
+</body>
+</html>

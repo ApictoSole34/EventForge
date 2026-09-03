@@ -5,7 +5,7 @@
 <th:block th:replace="~{layouts/base :: header}"></th:block>
 
 <div th:fragment="content">
-    <h1 style="font-size:1.6rem;margin-bottom:1rem;">🏚 Zombie Shelter</h1>
+    <h1 style="font-size:1.6rem;margin-bottom:1rem;" th:text="'🎮 ' + ${gameSession.scenarioName}">🎮 Scenario Name</h1>
 
     <div class="card" style="background-color:#111818;border-color:#1a3a1a;margin-bottom:1.5rem;">
         <div style="font-weight:600;color:#b0d0b0;margin-bottom:0.5rem;">Shelter Status</div>
@@ -24,7 +24,10 @@
         <!-- Case 1: terminal — story ends here -->
         <div th:if="${gameSession.terminal != null and gameSession.terminal}" style="margin-top:1.5rem;">
             <p style="color:#d0a0a0;font-weight:600;">The story ends here.</p>
-            <a href="/game/zombie-shelter" class="btn btn-primary" style="margin-top:0.8rem;display:inline-block;">Play Again</a>
+            <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:0.8rem;">
+                <a th:href="'/game/start/' + ${gameSession.scenarioId}" class="btn btn-primary">Play Again</a>
+                <a href="/game/my-games" class="btn btn-outline">My Games</a>
+            </div>
         </div>
 
         <!-- Case 2: triggered and choices are available -->

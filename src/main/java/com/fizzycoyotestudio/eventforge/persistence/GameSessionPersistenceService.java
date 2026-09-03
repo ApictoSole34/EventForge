@@ -4,8 +4,13 @@ import com.fizzycoyotestudio.eventforge.engine.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -41,16 +46,77 @@ public class GameSessionPersistenceService {
 
     @Transactional
     public UUID startSession(UUID scenarioId) {
+        return startSession(scenarioId, null);
+    }
+
+    /** playerId is null for sessions started via the REST API (no web cookie identity involved). */
+    @Transactional
+    public UUID startSession(UUID scenarioId, UUID playerId) {
         ScenarioPersistenceService.LoadedScenario scenario = scenarioService.load(scenarioId);
 
         GameSessionEntity entity = new GameSessionEntity();
         entity.setScenarioId(scenarioId);
+        entity.setPlayerId(playerId);
         entity.setCurrentEventBusinessId(scenario.startEventId());
         entity.setStateJson(stateJsonMapper.write(scenario.initialState()));
         entity.setTriggered(false);
         entity.setTerminal(false);
 
         return repository.save(entity).getId();
+    }
+
+    /** Returns an in-progress session id for this player+scenario, if one exists, so "Play" resumes instead of restarting. */
+    @Transactional(readOnly = true)
+    public Optional<UUID> findResumableSession(UUID playerId, UUID scenarioId) {
+        if (playerId == null) {
+            return Optional.empty();
+        }
+        return repository.findFirstByPlayerIdAndScenarioIdAndTerminalFalseOrderByUpdatedAtDesc(playerId, scenarioId)
+                .map(GameSessionEntity::getId);
+    }
+
+    /** All of this player's sessions (in-progress and finished), most recently active first. */
+    @Transactional(readOnly = true)
+    public List<GameSummaryView> findMyGames(UUID playerId) {
+        if (playerId == null) {
+            return List.of();
+        }
+        return repository.findByPlayerIdOrderByUpdatedAtDesc(playerId).stream()
+                .map(this::toSummaryOrNull)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /** Only deletes if the session actually belongs to this player — a basic ownership guard without full auth. */
+    @Transactional
+    public void deleteSession(UUID sessionId, UUID playerId) {
+        GameSessionEntity entity = getOrThrow(sessionId);
+        if (playerId == null || !playerId.equals(entity.getPlayerId())) {
+            throw new IllegalArgumentException("No game session with id " + sessionId);
+        }
+        repository.delete(entity);
+    }
+
+    private static final DateTimeFormatter LAST_PLAYED_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
+
+    /** Skips (rather than blows up on) sessions whose scenario has since been deleted. */
+    private GameSummaryView toSummaryOrNull(GameSessionEntity entity) {
+        try {
+            ScenarioPersistenceService.LoadedScenario scenario = scenarioService.load(entity.getScenarioId());
+            Event current = scenario.registry().getOrThrow(entity.getCurrentEventBusinessId());
+            String lastPlayedAt = entity.getUpdatedAt() != null ? LAST_PLAYED_FORMAT.format(entity.getUpdatedAt()) : "";
+            return new GameSummaryView(
+                    entity.getId(),
+                    entity.getScenarioId(),
+                    scenario.name(),
+                    current.getName(),
+                    entity.isTerminal(),
+                    lastPlayedAt
+            );
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /** Pure read: derives the full view from persisted state, applies nothing. */
@@ -69,6 +135,8 @@ public class GameSessionPersistenceService {
 
         return new GameSessionView(
                 entity.getId(),
+                entity.getScenarioId(),
+                scenario.name(),
                 current.getId(),
                 current.getName(),
                 current.getDescription(),
@@ -153,8 +221,10 @@ public class GameSessionPersistenceService {
     }
 
     public record ChoiceView(String id, String label) {}
-
-    public record GameSessionView(UUID sessionId, String eventId, String eventName, String eventDescription,
+    public record GameSessionView(UUID sessionId, UUID scenarioId, String scenarioName, String eventId, String eventName, String eventDescription,
                                   Boolean triggered, Boolean terminal,
                                   List<ChoiceView> choices, Map<String, Double> state) {}
+
+    public record GameSummaryView(UUID sessionId, UUID scenarioId, String scenarioName, String currentEventName,
+                                  boolean terminal, String lastPlayedAt) {}
 }

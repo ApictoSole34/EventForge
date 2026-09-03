@@ -9,23 +9,23 @@ import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
- * Drives web (non-API) gameplay. Sessions aren't tied to a logged-in
- * user yet — as an interim measure (before a full "My Games" /
- * multi-session feature lands) we remember the visitor's most recent
- * active session per scenario in a cookie, so re-clicking "Play"
- * resumes instead of silently starting over.
+ * Drives web (non-API) gameplay. There's no login system, so we
+ * identify "the same visitor" via a small "ef_player" cookie holding a
+ * random UUID, set on first visit. Game sessions are stamped with that
+ * playerId, which lets us resume in-progress sessions and list "My
+ * Games" without requiring real authentication. Swapping this for a
+ * logged-in user id later is a drop-in replacement — everything
+ * downstream just needs a UUID.
  */
 @Controller
 @RequestMapping("/game")
 public class GamePlayController {
 
-    private static final String SESSIONS_COOKIE = "ef_sessions";
+    private static final String PLAYER_COOKIE = "ef_player";
+    private static final int PLAYER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 
     private final GameSessionPersistenceService gameService;
     private final ScenarioPersistenceService scenarioService;
@@ -35,29 +35,24 @@ public class GamePlayController {
         this.scenarioService = scenarioService;
     }
 
-    /** Generic entry point: start (or resume) a session for any scenario. */
+    /** Generic entry point: resumes an in-progress session for this scenario, or starts a new one. */
     @GetMapping("/start/{scenarioId}")
     public String start(@PathVariable UUID scenarioId,
-                        @CookieValue(value = SESSIONS_COOKIE, required = false) String sessionsCookie,
+                        @CookieValue(value = PLAYER_COOKIE, required = false) String playerCookie,
                         HttpServletResponse response) {
         scenarioService.load(scenarioId);
 
-        Map<UUID, UUID> sessions = parseSessions(sessionsCookie);
-        UUID existing = sessions.get(scenarioId);
+        UUID playerId = resolvePlayerId(playerCookie, response);
 
-        UUID sessionId = (existing != null && sessionStillValid(existing)) ? existing : null;
-        if (sessionId == null) {
-            sessionId = gameService.startSession(scenarioId);
-            sessions.put(scenarioId, sessionId);
-            response.addCookie(buildCookie(sessions));
-        }
+        UUID sessionId = gameService.findResumableSession(playerId, scenarioId)
+                .orElseGet(() -> gameService.startSession(scenarioId, playerId));
 
         return "redirect:/game/session/" + sessionId;
     }
 
-    /** Kept for the nav bar's quick-play link; now just resolves the demo scenario and delegates. */
+    /** Kept for the nav bar's quick-play link; resolves the demo scenario and delegates. */
     @GetMapping("/zombie-shelter")
-    public String startZombieShelter(@CookieValue(value = SESSIONS_COOKIE, required = false) String sessionsCookie,
+    public String startZombieShelter(@CookieValue(value = PLAYER_COOKIE, required = false) String playerCookie,
                                      HttpServletResponse response) {
         var scenario = scenarioService.findAll().stream()
                 .filter(s -> "Zombie Shelter".equals(s.name()))
@@ -65,7 +60,15 @@ public class GamePlayController {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No 'Zombie Shelter' scenario found. Load it first (DataLoader with 'local' profile, or via /api/scenarios)."));
 
-        return start(scenario.id(), sessionsCookie, response);
+        return start(scenario.id(), playerCookie, response);
+    }
+
+    @GetMapping("/my-games")
+    public String myGames(@CookieValue(value = PLAYER_COOKIE, required = false) String playerCookie,
+                          HttpServletResponse response, Model model) {
+        UUID playerId = resolvePlayerId(playerCookie, response);
+        model.addAttribute("games", gameService.findMyGames(playerId));
+        return "my-games";
     }
 
     @GetMapping("/session/{sessionId}")
@@ -88,37 +91,33 @@ public class GamePlayController {
         return "redirect:/game/session/" + sessionId;
     }
 
-    private boolean sessionStillValid(UUID sessionId) {
+    @PostMapping("/session/{sessionId}/delete")
+    public String deleteSession(@PathVariable UUID sessionId,
+                                @CookieValue(value = PLAYER_COOKIE, required = false) String playerCookie) {
+        gameService.deleteSession(sessionId, parsePlayerId(playerCookie));
+        return "redirect:/game/my-games";
+    }
+
+    private UUID resolvePlayerId(String cookieValue, HttpServletResponse response) {
+        UUID playerId = parsePlayerId(cookieValue);
+        if (playerId == null) {
+            playerId = UUID.randomUUID();
+            Cookie cookie = new Cookie(PLAYER_COOKIE, playerId.toString());
+            cookie.setPath("/");
+            cookie.setMaxAge(PLAYER_COOKIE_MAX_AGE);
+            response.addCookie(cookie);
+        }
+        return playerId;
+    }
+
+    private UUID parsePlayerId(String cookieValue) {
+        if (!StringUtils.hasText(cookieValue)) {
+            return null;
+        }
         try {
-            gameService.getSession(sessionId);
-            return true;
+            return UUID.fromString(cookieValue);
         } catch (IllegalArgumentException e) {
-            return false;
+            return null;
         }
-    }
-
-    private Map<UUID, UUID> parseSessions(String cookieValue) {
-        Map<UUID, UUID> map = new LinkedHashMap<>();
-        if (StringUtils.hasText(cookieValue)) {
-            for (String pair : cookieValue.split("~")) {
-                String[] parts = pair.split(":");
-                if (parts.length == 2) {
-                    try {
-                        map.put(UUID.fromString(parts[0]), UUID.fromString(parts[1]));
-                    } catch (IllegalArgumentException ignored) {}
-                }
-            }
-        }
-        return map;
-    }
-
-    private Cookie buildCookie(Map<UUID, UUID> sessions) {
-        String value = sessions.entrySet().stream()
-                .map(e -> e.getKey() + ":" + e.getValue())
-                .collect(Collectors.joining("~"));
-        Cookie cookie = new Cookie(SESSIONS_COOKIE, value);
-        cookie.setPath("/");
-        cookie.setMaxAge(60 * 60 * 24 * 30);
-        return cookie;
     }
 }
