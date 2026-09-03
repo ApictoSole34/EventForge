@@ -67,4 +67,18 @@ public class DashboardController {
         model.addAttribute("scenario", response);
         return "scenario-detail";
     }
+
+    @GetMapping("/scenarios/{id}/graph")
+    public String scenarioGraph(@PathVariable UUID id, Model model) {
+        var loaded = scenarioService.load(id);
+        List<EventDto> eventDtos = loaded.registry().getAll().stream()
+                .map(mapper::toDto)
+                .toList();
+        var response = new ScenarioResponse(
+                loaded.id(), loaded.name(), loaded.description(),
+                loaded.startEventId(), loaded.initialState().asMap(), eventDtos
+        );
+        model.addAttribute("scenario", response);
+        return "scenario-graph";
+    }
 }

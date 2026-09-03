@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layouts/base :: head(pageTitle='Graph: ' + scenario.name)}"></head>
+<body>
+<th:block th:replace="~{layouts/base :: header}"></th:block>
+
+<div th:fragment="content">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">
+        <div>
+            <a th:href="'/scenarios/' + ${scenario.id}" style="color:#8a9a8a;text-decoration:none;">&larr; Back to <span th:text="${scenario.name}">Scenario</span></a>
+            <h1 style="font-size:1.6rem;margin-top:0.4rem;">🕸 Event Graph</h1>
+        </div>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button id="btn-fit" class="btn btn-outline">⤢ Fit</button>
+            <button id="btn-zoom-in" class="btn btn-outline">+ Zoom</button>
+            <button id="btn-zoom-out" class="btn btn-outline">− Zoom</button>
+            <button id="btn-reset-layout" class="btn btn-outline">↺ Reset Layout</button>
+            <a th:href="'/scenarios/' + ${scenario.id} + '/events/create'" class="btn btn-primary">+ Add Event</a>
+        </div>
+    </div>
+
+    <p style="color:#7a8a7a;font-size:0.85rem;margin-bottom:0.8rem;">
+        Drag nodes to arrange them (layout is saved in your browser). Drag empty space to pan, scroll to zoom.
+        Click a node's <strong>Edit</strong> label to open its form. Node positions are local-only — they don't affect gameplay.
+    </p>
+
+    <div class="card" style="padding:0;overflow:hidden;">
+        <svg id="graph-svg" width="100%" height="640" style="display:block;background:#0f1414;cursor:grab;">
+            <defs>
+                <marker id="arrow-next" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#5a9a5a"></path>
+                </marker>
+                <marker id="arrow-pool" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#6a9ab0"></path>
+                </marker>
+                <marker id="arrow-choice" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#c08a5a"></path>
+                </marker>
+            </defs>
+            <g id="viewport"></g>
+        </svg>
+    </div>
+
+    <div class="card" style="margin-top:1rem;font-size:0.85rem;">
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center;">
+            <span><svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#5a9a5a" stroke-width="2"></line></svg> Next Event</span>
+            <span><svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#6a9ab0" stroke-width="2" stroke-dasharray="4,3"></line></svg> Random Pool (weighted)</span>
+            <span><svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#c08a5a" stroke-width="2"></line></svg> Choice → Next</span>
+            <span><svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#c08a5a" stroke-width="2" stroke-dasharray="4,3"></line></svg> Choice → Random Pool</span>
+            <span style="color:#e0c060;">★ Start Event</span>
+        </div>
+    </div>
+
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        const scenarioData = /*[[${scenario}]]*/ {};
+        /*]]>*/
+    </script>
+    <script th:inline="none">
+    (function () {
+        const scenario = scenarioData;
+        const events = scenario.events || [];
+        const byId = {};
+        events.forEach(function (e) { byId[e.id] = e; });
+
+        const NODE_W = 210, NODE_H = 88;
+        const storageKey = 'eventforge-graph-layout-' + scenario.id;
+
+        let positions = {};
+        try { positions = JSON.parse(localStorage.getItem(storageKey)) || {}; } catch (e) { positions = {}; }
+
+        function autoLayout() {
+            const layer = {};
+            const visited = {};
+            const queue = [[scenario.startEventId, 0]];
+            while (queue.length) {
+                const item = queue.shift();
+                const id = item[0], d = item[1];
+                if (visited[id] || !byId[id]) continue;
+                visited[id] = true;
+                layer[id] = d;
+                const ev = byId[id];
+                const nexts = {};
+                if (ev.nextEventId) nexts[ev.nextEventId] = true;
+                (ev.nextEventPool || []).forEach(function (p) { nexts[p.eventId] = true; });
+                (ev.choices || []).forEach(function (c) {
+                    if (c.nextEventId) nexts[c.nextEventId] = true;
+                    (c.nextEventPool || []).forEach(function (p) { nexts[p.eventId] = true; });
+                });
+                Object.keys(nexts).forEach(function (n) {
+                    if (!visited[n] && byId[n]) queue.push([n, d + 1]);
+                });
+            }
+            let maxLayer = 0;
+            Object.values(layer).forEach(function (l) { if (l > maxLayer) maxLayer = l; });
+            events.forEach(function (e) { if (!(e.id in layer)) { maxLayer += 1; layer[e.id] = maxLayer; } });
+
+            const cols = {};
+            events.forEach(function (e) {
+                const l = layer[e.id];
+                cols[l] = cols[l] || [];
+                cols[l].push(e.id);
+            });
+            Object.keys(cols).forEach(function (l) {
+                cols[l].forEach(function (id, i) {
+                    positions[id] = { x: 60 + Number(l) * 280, y: 50 + i * 150 };
+                });
+            });
+        }
+
+        let hasAny = false;
+        events.forEach(function (e) { if (positions[e.id]) hasAny = true; });
+        if (!hasAny) autoLayout();
+        events.forEach(function (e) { if (!positions[e.id]) positions[e.id] = { x: 60, y: 60 }; });
+
+        function savePositions() {
+            try { localStorage.setItem(storageKey, JSON.stringify(positions)); } catch (e) {}
+        }
+        savePositions();
+
+        const svg = document.getElementById('graph-svg');
+        const viewport = document.getElementById('viewport');
+        const SVGNS = 'http://www.w3.org/2000/svg';
+
+        let panX = 0, panY = 0, scale = 1;
+        function applyTransform() {
+            viewport.setAttribute('transform', 'translate(' + panX + ',' + panY + ') scale(' + scale + ')');
+        }
+
+        function el(tag, attrs) {
+            const n = document.createElementNS(SVGNS, tag);
+            Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+            return n;
+        }
+
+        function anchorPoint(id, side) {
+            const p = positions[id];
+            if (!p) return { x: 0, y: 0 };
+            return side === 'right'
+                ? { x: p.x + NODE_W, y: p.y + NODE_H / 2 }
+                : { x: p.x, y: p.y + NODE_H / 2 };
+        }
+
+        function buildEdges() {
+            const edges = [];
+            events.forEach(function (ev) {
+                if (ev.nextEventId && byId[ev.nextEventId]) {
+                    edges.push({ from: ev.id, to: ev.nextEventId, kind: 'next', label: null });
+                }
+                (ev.nextEventPool || []).forEach(function (p) {
+                    if (byId[p.eventId]) edges.push({ from: ev.id, to: p.eventId, kind: 'pool', label: 'w' + p.weight });
+                });
+                (ev.choices || []).forEach(function (c) {
+                    if (c.nextEventId && byId[c.nextEventId]) {
+                        edges.push({ from: ev.id, to: c.nextEventId, kind: 'choice-next', label: c.label });
+                    }
+                    (c.nextEventPool || []).forEach(function (p) {
+                        if (byId[p.eventId]) edges.push({ from: ev.id, to: p.eventId, kind: 'choice-pool', label: c.label + ' (w' + p.weight + ')' });
+                    });
+                });
+            });
+            const pairCount = {};
+            edges.forEach(function (edge) {
+                const key = edge.from + '->' + edge.to;
+                pairCount[key] = (pairCount[key] || 0);
+                edge._offset = pairCount[key];
+                pairCount[key] += 1;
+            });
+            return edges;
+        }
+
+        const EDGE_COLOR = { next: '#5a9a5a', pool: '#6a9ab0', 'choice-next': '#c08a5a', 'choice-pool': '#c08a5a' };
+        const EDGE_MARKER = { next: 'url(#arrow-next)', pool: 'url(#arrow-pool)', 'choice-next': 'url(#arrow-choice)', 'choice-pool': 'url(#arrow-choice)' };
+        const EDGE_DASH = { next: null, pool: '5,4', 'choice-next': null, 'choice-pool': '5,4' };
+
+        function render() {
+            while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
+
+            const edges = buildEdges();
+            const edgeLayer = el('g', {});
+            const nodeLayer = el('g', {});
+            viewport.appendChild(edgeLayer);
+            viewport.appendChild(nodeLayer);
+
+            function redrawEdges() {
+                while (edgeLayer.firstChild) edgeLayer.removeChild(edgeLayer.firstChild);
+                edges.forEach(function (edge) {
+                    const from = anchorPoint(edge.from, 'right');
+                    const to = anchorPoint(edge.to, 'left');
+                    const curveOffset = 40 + edge._offset * 22;
+                    const midY = (from.y + to.y) / 2 + (edge._offset % 2 === 0 ? edge._offset : -edge._offset) * 6;
+                    const c1x = from.x + curveOffset, c1y = from.y;
+                    const c2x = to.x - curveOffset, c2y = to.y;
+                    const path = el('path', {
+                        d: 'M ' + from.x + ' ' + from.y + ' C ' + c1x + ' ' + c1y + ', ' + c2x + ' ' + c2y + ', ' + to.x + ' ' + to.y,
+                        fill: 'none',
+                        stroke: EDGE_COLOR[edge.kind],
+                        'stroke-width': '2',
+                        'marker-end': EDGE_MARKER[edge.kind]
+                    });
+                    if (EDGE_DASH[edge.kind]) path.setAttribute('stroke-dasharray', EDGE_DASH[edge.kind]);
+                    edgeLayer.appendChild(path);
+
+                    if (edge.label) {
+                        const t = 0.5;
+                        const lx = Math.pow(1 - t, 3) * from.x + 3 * Math.pow(1 - t, 2) * t * c1x + 3 * (1 - t) * t * t * c2x + t * t * t * to.x;
+                        const ly = Math.pow(1 - t, 3) * from.y + 3 * Math.pow(1 - t, 2) * t * c1y + 3 * (1 - t) * t * t * c2y + t * t * t * to.y;
+                        const bg = el('rect', { x: lx - 30, y: ly - 9, width: 60, height: 16, rx: 4, fill: '#0f1414', opacity: '0.85' });
+                        const label = el('text', { x: lx, y: ly + 3, 'text-anchor': 'middle', 'font-size': '10', fill: EDGE_COLOR[edge.kind] });
+                        label.textContent = edge.label.length > 14 ? edge.label.slice(0, 13) + '…' : edge.label;
+                        edgeLayer.appendChild(bg);
+                        edgeLayer.appendChild(label);
+                    }
+                });
+            }
+
+            events.forEach(function (ev) {
+                const p = positions[ev.id];
+                const g = el('g', { transform: 'translate(' + p.x + ',' + p.y + ')', style: 'cursor:grab;' });
+                const isStart = ev.id === scenario.startEventId;
+
+                const rect = el('rect', {
+                    width: NODE_W, height: NODE_H, rx: 8,
+                    fill: '#1a2022', stroke: isStart ? '#e0c060' : '#3a4a3a', 'stroke-width': isStart ? '2' : '1'
+                });
+                g.appendChild(rect);
+
+                const title = el('text', { x: 10, y: 20, 'font-size': '13', fill: '#c8e6c8', 'font-weight': '600' });
+                title.textContent = (isStart ? '★ ' : '') + (ev.name || ev.id);
+                g.appendChild(title);
+
+                const idText = el('text', { x: 10, y: 36, 'font-size': '10', fill: '#7a9a7a' });
+                idText.textContent = ev.id;
+                g.appendChild(idText);
+
+                const badges = [];
+                if (ev.condition && ev.condition['@type'] !== 'ALWAYS_TRUE' && ev.condition.type !== 'ALWAYS_TRUE') badges.push('condition');
+                if (ev.actions && ev.actions.length) badges.push(ev.actions.length + ' actions');
+                if (ev.choices && ev.choices.length) badges.push(ev.choices.length + ' choices');
+                if (ev.cooldownTicks) badges.push('cd ' + ev.cooldownTicks);
+                const badgeText = el('text', { x: 10, y: 52, 'font-size': '9.5', fill: '#8a9a8a' });
+                badgeText.textContent = badges.join(' · ') || 'no condition / auto';
+                g.appendChild(badgeText);
+
+                const editLink = el('a', {});
+                editLink.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '/scenarios/' + scenario.id + '/events/' + encodeURIComponent(ev.id) + '/edit');
+                const editText = el('text', { x: 10, y: 74, 'font-size': '11', fill: '#7ab0e0', 'text-decoration': 'underline' });
+                editText.textContent = 'Edit event →';
+                editLink.appendChild(editText);
+                g.appendChild(editLink);
+
+                nodeLayer.appendChild(g);
+
+                let dragging = false, moved = false, startX, startY, origX, origY;
+                g.addEventListener('mousedown', function (evt) {
+                    if (evt.target === editText || evt.target === editLink) return;
+                    dragging = true; moved = false;
+                    startX = evt.clientX; startY = evt.clientY;
+                    origX = positions[ev.id].x; origY = positions[ev.id].y;
+                    evt.stopPropagation();
+                });
+                window.addEventListener('mousemove', function (evt) {
+                    if (!dragging) return;
+                    const dx = (evt.clientX - startX) / scale;
+                    const dy = (evt.clientY - startY) / scale;
+                    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
+                    positions[ev.id] = { x: origX + dx, y: origY + dy };
+                    g.setAttribute('transform', 'translate(' + positions[ev.id].x + ',' + positions[ev.id].y + ')');
+                    redrawEdges();
+                });
+                window.addEventListener('mouseup', function () {
+                    if (dragging && moved) savePositions();
+                    dragging = false;
+                });
+            });
+
+            redrawEdges();
+        }
+
+        render();
+        applyTransform();
+
+        let panning = false, panStartX, panStartY, origPanX, origPanY;
+        svg.addEventListener('mousedown', function (evt) {
+            if (evt.target !== svg) return;
+            panning = true;
+            panStartX = evt.clientX; panStartY = evt.clientY;
+            origPanX = panX; origPanY = panY;
+            svg.style.cursor = 'grabbing';
+        });
+        window.addEventListener('mousemove', function (evt) {
+            if (!panning) return;
+            panX = origPanX + (evt.clientX - panStartX);
+            panY = origPanY + (evt.clientY - panStartY);
+            applyTransform();
+        });
+        window.addEventListener('mouseup', function () { panning = false; svg.style.cursor = 'grab'; });
+
+        svg.addEventListener('wheel', function (evt) {
+            evt.preventDefault();
+            const factor = evt.deltaY < 0 ? 1.1 : 0.9;
+            scale = Math.min(2.5, Math.max(0.3, scale * factor));
+            applyTransform();
+        }, { passive: false });
+
+        document.getElementById('btn-zoom-in').addEventListener('click', function () {
+            scale = Math.min(2.5, scale * 1.2); applyTransform();
+        });
+        document.getElementById('btn-zoom-out').addEventListener('click', function () {
+            scale = Math.max(0.3, scale * 0.8); applyTransform();
+        });
+        document.getElementById('btn-fit').addEventListener('click', function () {
+            if (!events.length) return;
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            events.forEach(function (e) {
+                const p = positions[e.id];
+                minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+                maxX = Math.max(maxX, p.x + NODE_W); maxY = Math.max(maxY, p.y + NODE_H);
+            });
+            const svgRect = svg.getBoundingClientRect();
+            const w = maxX - minX + 80, h = maxY - minY + 80;
+            scale = Math.min(2, Math.max(0.3, Math.min(svgRect.width / w, svgRect.height / h)));
+            panX = -minX * scale + 40;
+            panY = -minY * scale + 40;
+            applyTransform();
+        });
+        document.getElementById('btn-reset-layout').addEventListener('click', function () {
+            if (!confirm('Reset node positions to the auto-generated layout?')) return;
+            positions = {};
+            autoLayout();
+            savePositions();
+            render();
+        });
+    })();
+    </script>
+</div>
+
+<th:block th:replace="~{layouts/base :: footer}"></th:block>
+</body>
+</html>
