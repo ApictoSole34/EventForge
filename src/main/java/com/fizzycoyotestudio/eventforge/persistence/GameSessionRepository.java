@@ -12,4 +12,6 @@ public interface GameSessionRepository extends JpaRepository<GameSessionEntity, 
 
     Optional<GameSessionEntity> findFirstByPlayerIdAndScenarioIdAndTerminalFalseOrderByUpdatedAtDesc(
             UUID playerId, UUID scenarioId);
+
+    void deleteByScenarioId(UUID scenarioId);
 }

@@ -25,6 +25,10 @@
             <div style="margin-top: 1rem; display: flex; gap: 0.6rem; flex-wrap: wrap;">
                 <a th:href="'/game/start/' + ${scenario.id}" class="btn btn-primary">▶ Play</a>
                 <a th:href="'/scenarios/' + ${scenario.id}" class="btn btn-outline">View Details →</a>
+                <form th:action="'/scenarios/' + ${scenario.id} + '/delete'" method="post"
+                      onsubmit="return confirm('Delete this entire scenario and all its events? This cannot be undone.');" style="display:inline;">
+                    <button type="submit" class="btn btn-outline" style="color:#d08080;">Delete</button>
+                </form>
             </div>
         </div>
     </div>

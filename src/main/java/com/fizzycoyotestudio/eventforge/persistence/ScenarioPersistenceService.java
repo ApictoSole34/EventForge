@@ -18,12 +18,14 @@ public class ScenarioPersistenceService {
     private final ScenarioRepository repository;
     private final EventPersistenceMapper mapper;
     private final GameStateJsonMapper stateJsonMapper;
+    private final GameSessionRepository gameSessionRepository;
 
     public ScenarioPersistenceService(ScenarioRepository repository, EventPersistenceMapper mapper,
-                                      GameStateJsonMapper stateJsonMapper) {
+                                      GameStateJsonMapper stateJsonMapper, GameSessionRepository gameSessionRepository) {
         this.repository = repository;
         this.mapper = mapper;
         this.stateJsonMapper = stateJsonMapper;
+        this.gameSessionRepository = gameSessionRepository;
     }
 
     @Transactional
@@ -60,6 +62,21 @@ public class ScenarioPersistenceService {
                 .orElseThrow(() -> new IllegalArgumentException("No scenario with id " + scenarioId));
         scenario.getEvents().removeIf(e -> e.getBusinessId().equals(eventId));
         repository.save(scenario);
+    }
+
+    /**
+     * Deletes the scenario and all its events/choices (cascaded via
+     * ScenarioEntity's mapping). Any game sessions still pointing at
+     * this scenario (scenarioId isn't a DB foreign key, by design —
+     * see EventEntity's note on nextEventBusinessId) would otherwise
+     * become permanently unplayable orphans, so we clean those up too.
+     */
+    @Transactional
+    public void deleteScenario(UUID scenarioId) {
+        ScenarioEntity scenario = repository.findById(scenarioId)
+                .orElseThrow(() -> new IllegalArgumentException("No scenario with id " + scenarioId));
+        repository.delete(scenario);
+        gameSessionRepository.deleteByScenarioId(scenarioId);
     }
 
     @Transactional(readOnly = true)

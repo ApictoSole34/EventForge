@@ -15,6 +15,10 @@
             <span class="badge" th:text="'Start: ' + ${scenario.startEventId}">Start: zombie-attack</span>
             <span class="badge" th:text="'Events: ' + ${scenario.events.size()}">Events: 5</span>
             <a th:href="'/game/start/' + ${scenario.id}" class="btn btn-primary">▶ Play</a>
+            <form th:action="'/scenarios/' + ${scenario.id} + '/delete'" method="post"
+                  onsubmit="return confirm('Delete this entire scenario and all its events? This cannot be undone.');" style="display:inline;">
+                <button type="submit" class="btn btn-outline" style="color:#d08080;">Delete Scenario</button>
+            </form>
         </div>
     </div>
 
