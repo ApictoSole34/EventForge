@@ -22,7 +22,7 @@ import java.util.function.Predicate;
  * the pool, not of the choice offering them.
  */
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public final class Choice {
 
     private final String id;

@@ -42,7 +42,7 @@ import java.util.function.Predicate;
  * {@code nextEventId} (which may itself be null, ending the chain).
  */
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public final class Event {
 
     private final String id;

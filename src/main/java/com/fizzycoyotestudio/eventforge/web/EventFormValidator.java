@@ -1,6 +1,7 @@
 package com.fizzycoyotestudio.eventforge.web;
 
 import com.fizzycoyotestudio.eventforge.web.dto.ChoiceFormData;
+import com.fizzycoyotestudio.eventforge.web.dto.ConditionRowForm;
 import com.fizzycoyotestudio.eventforge.web.dto.EventFormData;
 import com.fizzycoyotestudio.eventforge.web.dto.PoolEntryForm;
 import org.springframework.stereotype.Component;
@@ -33,6 +34,7 @@ public class EventFormValidator {
             errors.add("Cooldown must be zero or greater.");
         }
 
+        validateConditions(form.getConditions(), "Condition", errors);
         validateNextEventId(form.getNextEventId(), form.getId(), existingEventIds, "Next Event", errors);
         validatePool(form.getNextEventPool(), form.getId(), existingEventIds, "Random next-event pool", errors);
 
@@ -52,11 +54,30 @@ public class EventFormValidator {
                 errors.add(label + ": label is required.");
             }
 
+            validateConditions(choice.getConditions(), label + " condition", errors);
             validateNextEventId(choice.getNextEventId(), form.getId(), existingEventIds, label + " next event", errors);
             validatePool(choice.getNextEventPool(), form.getId(), existingEventIds, label + " random next-event pool", errors);
         }
 
         return errors;
+    }
+
+    /**
+     * Validates condition rows. Empty rows (e.g. an "Add Condition" the user didn't fill in) are ignored silently.
+     */
+    private void validateConditions(List<ConditionRowForm> rows, String fieldLabel, List<String> errors) {
+        for (int i = 0; i < rows.size(); i++) {
+            ConditionRowForm row = rows.get(i);
+            boolean hasVar = StringUtils.hasText(row.getVariable());
+            boolean hasOp = StringUtils.hasText(row.getOperator());
+            boolean hasVal = row.getValue() != null;
+
+            if (!hasVar && !hasOp && !hasVal) continue;
+
+            if (!hasVar) errors.add(fieldLabel + " row #" + (i + 1) + ": variable is required.");
+            if (!hasOp) errors.add(fieldLabel + " row #" + (i + 1) + ": operator is required.");
+            if (!hasVal) errors.add(fieldLabel + " row #" + (i + 1) + ": value is required.");
+        }
     }
 
     private void validateNextEventId(String nextEventId, String ownId, List<String> existingEventIds,
@@ -68,7 +89,9 @@ public class EventFormValidator {
         }
     }
 
-    /** Blank/fully-empty rows (an "Add Candidate" the user never filled in) are ignored silently, same convention as initial-state rows. */
+    /**
+     * Validates weighted pool entries. Blank/fully-empty rows are ignored silently.
+     */
     private void validatePool(List<PoolEntryForm> pool, String ownId, List<String> existingEventIds,
                               String fieldLabel, List<String> errors) {
         for (int i = 0; i < pool.size(); i++) {

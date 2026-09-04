@@ -5,6 +5,7 @@ import com.fizzycoyotestudio.eventforge.web.dto.*;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -16,7 +17,7 @@ public class EventFormMapper {
                 .id(form.getId())
                 .name(form.getName())
                 .description(form.getDescription())
-                .condition(toCondition(form.getConditionVariable(), form.getConditionOperator(), form.getConditionValue()))
+                .condition(toCondition(form.getConditions(), form.getConditionCombinator()))
                 .actions(toActions(form.getActions()))
                 .choices(form.getChoices().stream().map(this::toDomain).toList())
                 .nextEventId(blankToNull(form.getNextEventId()))
@@ -30,20 +31,19 @@ public class EventFormMapper {
                 .id(form.getId())
                 .label(form.getLabel())
                 .description(form.getDescription())
-                .condition(toCondition(form.getConditionVariable(), form.getConditionOperator(), form.getConditionValue()))
+                .condition(toCondition(form.getConditions(), form.getConditionCombinator()))
                 .actions(toActions(form.getActions()))
                 .nextEventId(blankToNull(form.getNextEventId()))
                 .nextEventPool(toPool(form.getNextEventPool()))
                 .build();
     }
 
-    /** Pre-fills a form for editing. AND/OR/NOT conditions aren't representable here — left blank (author them via the API/JSON, as noted in the UI). */
     public EventFormData toFormData(Event event) {
         EventFormData form = new EventFormData();
         form.setId(event.getId());
         form.setName(event.getName());
         form.setDescription(event.getDescription());
-        fillCondition(event.getCondition(), form::setConditionVariable, form::setConditionOperator, form::setConditionValue);
+        fillCondition(event.getCondition(), form::setConditions, form::setConditionCombinator, form::setComplexCondition);
         form.setActions(toActionRows(event.getActions()));
         form.setChoices(event.getChoices().stream().map(this::toFormData).toList());
         form.setNextEventId(event.getNextEventId());
@@ -57,26 +57,96 @@ public class EventFormMapper {
         form.setId(choice.getId());
         form.setLabel(choice.getLabel());
         form.setDescription(choice.getDescription());
-        fillCondition(choice.getCondition(), form::setConditionVariable, form::setConditionOperator, form::setConditionValue);
+        fillCondition(choice.getCondition(), form::setConditions, form::setConditionCombinator, form::setComplexCondition);
         form.setActions(toActionRows(choice.getActions()));
         form.setNextEventId(choice.getNextEventId());
         form.setNextEventPool(toPoolRows(choice.getNextEventPool()));
         return form;
     }
 
-    private Condition toCondition(String variable, String operator, Double value) {
-        if (!StringUtils.hasText(variable) || !StringUtils.hasText(operator) || value == null) {
+    private Condition toCondition(List<ConditionRowForm> rows, String combinator) {
+        List<Condition> conditions = rows.stream()
+                .filter(r -> StringUtils.hasText(r.getVariable()) && StringUtils.hasText(r.getOperator()) && r.getValue() != null)
+                .<Condition>map(r -> {
+                    Condition c = new ComparisonCondition(r.getVariable(), Operator.valueOf(r.getOperator()), r.getValue());
+                    return r.isNegate() ? new NotCondition(c) : c;
+                })
+                .toList();
+
+        if (conditions.isEmpty()) {
             return Condition.alwaysTrue();
         }
-        return new ComparisonCondition(variable, Operator.valueOf(operator), value);
+        if (conditions.size() == 1) {
+            return conditions.get(0);
+        }
+        return "OR".equals(combinator) ? new OrCondition(conditions) : new AndCondition(conditions);
     }
 
-    private void fillCondition(Condition condition, Consumer<String> setVar, Consumer<String> setOp, Consumer<Double> setVal) {
-        if (condition instanceof ComparisonCondition c) {
-            setVar.accept(c.getVariable());
-            setOp.accept(c.getOperator().name());
-            setVal.accept(c.getValue());
+    /**
+     * Reconstructs form rows from a saved Condition. Handles:
+     * <ul>
+     *   <li>ALWAYS_TRUE → empty rows</li>
+     *   <li>single COMPARISON → one row</li>
+     *   <li>single NOT(COMPARISON) → one row with negate=true</li>
+     *   <li>AND/OR where all children are COMPARISON or NOT(COMPARISON) → one row per child</li>
+     * </ul>
+     * Anything deeper (e.g. OR inside an AND) cannot be represented in this simple builder —
+     * rows are left empty and complexCondition = true, so the UI can warn the author
+     * rather than silently overwriting the original condition on save.
+     */
+    private void fillCondition(Condition condition, Consumer<List<ConditionRowForm>> setRows,
+                               Consumer<String> setCombinator, Consumer<Boolean> setComplex) {
+        setCombinator.accept("AND");
+        setComplex.accept(false);
+
+        if (condition instanceof AlwaysTrueCondition) {
+            setRows.accept(new ArrayList<>());
+            return;
         }
+        if (condition instanceof ComparisonCondition c) {
+            setRows.accept(new ArrayList<>(List.of(toRow(c, false))));
+            return;
+        }
+        if (condition instanceof NotCondition n && n.getCondition() instanceof ComparisonCondition c) {
+            setRows.accept(new ArrayList<>(List.of(toRow(c, true))));
+            return;
+        }
+        if (condition instanceof AndCondition || condition instanceof OrCondition) {
+            List<Condition> children = condition instanceof AndCondition a
+                    ? a.getConditions() : ((OrCondition) condition).getConditions();
+            List<ConditionRowForm> rows = new ArrayList<>();
+            boolean allSimple = true;
+            for (Condition child : children) {
+                if (child instanceof ComparisonCondition c) {
+                    rows.add(toRow(c, false));
+                } else if (child instanceof NotCondition n && n.getCondition() instanceof ComparisonCondition c) {
+                    rows.add(toRow(c, true));
+                } else {
+                    allSimple = false;
+                    break;
+                }
+            }
+            if (allSimple) {
+                setRows.accept(rows);
+                setCombinator.accept(condition instanceof OrCondition ? "OR" : "AND");
+            } else {
+                setRows.accept(new ArrayList<>());
+                setComplex.accept(true);
+            }
+            return;
+        }
+
+        setRows.accept(new ArrayList<>());
+        setComplex.accept(true);
+    }
+
+    private ConditionRowForm toRow(ComparisonCondition c, boolean negate) {
+        ConditionRowForm row = new ConditionRowForm();
+        row.setVariable(c.getVariable());
+        row.setOperator(c.getOperator().name());
+        row.setValue(c.getValue());
+        row.setNegate(negate);
+        return row;
     }
 
     private List<GameAction> toActions(List<ActionRowForm> rows) {
@@ -104,7 +174,6 @@ public class EventFormMapper {
         }).toList();
     }
 
-    /** Blank/incomplete rows (e.g. an "Add Candidate" the user didn't fill in) are silently dropped, matching the actions-row convention above. */
     private List<WeightedTransition> toPool(List<PoolEntryForm> rows) {
         return rows.stream()
                 .filter(r -> StringUtils.hasText(r.getEventId()) && r.getWeight() != null && r.getWeight() > 0)

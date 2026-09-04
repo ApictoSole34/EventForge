@@ -11,9 +11,9 @@ public class ChoiceFormData {
     private String label;
     private String description;
 
-    private String conditionVariable;
-    private String conditionOperator;
-    private Double conditionValue;
+    private List<ConditionRowForm> conditions = new ArrayList<>();
+    private String conditionCombinator = "AND";
+    private boolean complexCondition;
 
     private List<ActionRowForm> actions = new ArrayList<>();
     private String nextEventId;

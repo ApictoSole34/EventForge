@@ -11,6 +11,7 @@
             <h1 style="font-size:1.6rem;margin-top:0.4rem;">🕸 Event Graph</h1>
         </div>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button id="btn-edit-mode" class="btn btn-outline">✏ Edit Mode: OFF</button>
             <button id="btn-fit" class="btn btn-outline">⤢ Fit</button>
             <button id="btn-zoom-in" class="btn btn-outline">+ Zoom</button>
             <button id="btn-zoom-out" class="btn btn-outline">− Zoom</button>
@@ -21,7 +22,8 @@
 
     <p style="color:#7a8a7a;font-size:0.85rem;margin-bottom:0.8rem;">
         Drag nodes to arrange them (layout is saved in your browser). Drag empty space to pan, scroll to zoom.
-        Click a node's <strong>Edit</strong> label to open its form. Node positions are local-only — they don't affect gameplay.
+        Click a node's <strong>Edit</strong> label to open its form. Node positions are local‑only — they don't affect gameplay.
+        <span style="color:#b0d0b0;">In Edit Mode: double‑click empty canvas to add an event, drag from a node's right‑edge handle to another node to connect it, click an edge then press Delete to remove it, click a node's ✕ to delete it.</span>
     </p>
 
     <div class="card" style="padding:0;overflow:hidden;">
@@ -51,287 +53,717 @@
         </div>
     </div>
 
+    <div id="inspector" style="display:none;position:fixed;top:0;right:0;width:400px;height:100vh;background:#141a1a;border-left:1px solid #2a3a2a;padding:1rem;overflow-y:auto;z-index:10;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <strong id="inspector-title" style="font-size:1.2rem;">Edit Event</strong>
+            <div>
+                <button id="inspector-delete" class="btn btn-outline" style="color:#d08080;padding:0.2rem 0.6rem;">🗑 Delete</button>
+                <button id="inspector-close" class="btn btn-outline" style="padding:0.2rem 0.6rem;">✕</button>
+            </div>
+        </div>
+        <div id="inspector-body"></div>
+    </div>
+
     <script th:inline="javascript">
-        /*<![CDATA[*/
-        const scenarioData = /*[[${scenario}]]*/ {};
-        /*]]>*/
+        const scenarioData = {};
+        const operators = [];
     </script>
     <script th:inline="none">
-    (function () {
-        const scenario = scenarioData;
-        const events = scenario.events || [];
-        const byId = {};
-        events.forEach(function (e) { byId[e.id] = e; });
+        (function () {
+            const scenario = scenarioData;
+            const events = scenario.events || [];
+            const byId = {};
+            events.forEach(function (e) { byId[e.id] = e; });
 
-        const NODE_W = 210, NODE_H = 88;
-        const storageKey = 'eventforge-graph-layout-' + scenario.id;
+            const NODE_W = 210, NODE_H = 88;
+            const storageKey = 'eventforge-graph-layout-' + scenario.id;
+            const EVENTS_API = '/api/scenarios/' + scenario.id + '/events';
 
-        let positions = {};
-        try { positions = JSON.parse(localStorage.getItem(storageKey)) || {}; } catch (e) { positions = {}; }
+            let positions = {};
+            try { positions = JSON.parse(localStorage.getItem(storageKey)) || {}; } catch (e) { positions = {}; }
 
-        function autoLayout() {
-            const layer = {};
-            const visited = {};
-            const queue = [[scenario.startEventId, 0]];
-            while (queue.length) {
-                const item = queue.shift();
-                const id = item[0], d = item[1];
-                if (visited[id] || !byId[id]) continue;
-                visited[id] = true;
-                layer[id] = d;
-                const ev = byId[id];
-                const nexts = {};
-                if (ev.nextEventId) nexts[ev.nextEventId] = true;
-                (ev.nextEventPool || []).forEach(function (p) { nexts[p.eventId] = true; });
-                (ev.choices || []).forEach(function (c) {
-                    if (c.nextEventId) nexts[c.nextEventId] = true;
-                    (c.nextEventPool || []).forEach(function (p) { nexts[p.eventId] = true; });
-                });
-                Object.keys(nexts).forEach(function (n) {
-                    if (!visited[n] && byId[n]) queue.push([n, d + 1]);
-                });
-            }
-            let maxLayer = 0;
-            Object.values(layer).forEach(function (l) { if (l > maxLayer) maxLayer = l; });
-            events.forEach(function (e) { if (!(e.id in layer)) { maxLayer += 1; layer[e.id] = maxLayer; } });
-
-            const cols = {};
-            events.forEach(function (e) {
-                const l = layer[e.id];
-                cols[l] = cols[l] || [];
-                cols[l].push(e.id);
-            });
-            Object.keys(cols).forEach(function (l) {
-                cols[l].forEach(function (id, i) {
-                    positions[id] = { x: 60 + Number(l) * 280, y: 50 + i * 150 };
-                });
-            });
-        }
-
-        let hasAny = false;
-        events.forEach(function (e) { if (positions[e.id]) hasAny = true; });
-        if (!hasAny) autoLayout();
-        events.forEach(function (e) { if (!positions[e.id]) positions[e.id] = { x: 60, y: 60 }; });
-
-        function savePositions() {
-            try { localStorage.setItem(storageKey, JSON.stringify(positions)); } catch (e) {}
-        }
-        savePositions();
-
-        const svg = document.getElementById('graph-svg');
-        const viewport = document.getElementById('viewport');
-        const SVGNS = 'http://www.w3.org/2000/svg';
-
-        let panX = 0, panY = 0, scale = 1;
-        function applyTransform() {
-            viewport.setAttribute('transform', 'translate(' + panX + ',' + panY + ') scale(' + scale + ')');
-        }
-
-        function el(tag, attrs) {
-            const n = document.createElementNS(SVGNS, tag);
-            Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
-            return n;
-        }
-
-        function anchorPoint(id, side) {
-            const p = positions[id];
-            if (!p) return { x: 0, y: 0 };
-            return side === 'right'
-                ? { x: p.x + NODE_W, y: p.y + NODE_H / 2 }
-                : { x: p.x, y: p.y + NODE_H / 2 };
-        }
-
-        function buildEdges() {
-            const edges = [];
-            events.forEach(function (ev) {
-                if (ev.nextEventId && byId[ev.nextEventId]) {
-                    edges.push({ from: ev.id, to: ev.nextEventId, kind: 'next', label: null });
+            function autoLayout() {
+                const layer = {};
+                const visited = {};
+                const queue = [[scenario.startEventId, 0]];
+                while (queue.length) {
+                    const item = queue.shift();
+                    const id = item[0], d = item[1];
+                    if (visited[id] || !byId[id]) continue;
+                    visited[id] = true;
+                    layer[id] = d;
+                    const ev = byId[id];
+                    const nexts = {};
+                    if (ev.nextEventId) nexts[ev.nextEventId] = true;
+                    (ev.nextEventPool || []).forEach(function (p) { nexts[p.eventId] = true; });
+                    (ev.choices || []).forEach(function (c) {
+                        if (c.nextEventId) nexts[c.nextEventId] = true;
+                        (c.nextEventPool || []).forEach(function (p) { nexts[p.eventId] = true; });
+                    });
+                    Object.keys(nexts).forEach(function (n) {
+                        if (!visited[n] && byId[n]) queue.push([n, d + 1]);
+                    });
                 }
-                (ev.nextEventPool || []).forEach(function (p) {
-                    if (byId[p.eventId]) edges.push({ from: ev.id, to: p.eventId, kind: 'pool', label: 'w' + p.weight });
+                let maxLayer = 0;
+                Object.values(layer).forEach(function (l) { if (l > maxLayer) maxLayer = l; });
+                events.forEach(function (e) { if (!(e.id in layer)) { maxLayer += 1; layer[e.id] = maxLayer; } });
+
+                const cols = {};
+                events.forEach(function (e) {
+                    const l = layer[e.id];
+                    cols[l] = cols[l] || [];
+                    cols[l].push(e.id);
                 });
-                (ev.choices || []).forEach(function (c) {
-                    if (c.nextEventId && byId[c.nextEventId]) {
-                        edges.push({ from: ev.id, to: c.nextEventId, kind: 'choice-next', label: c.label });
-                    }
-                    (c.nextEventPool || []).forEach(function (p) {
-                        if (byId[p.eventId]) edges.push({ from: ev.id, to: p.eventId, kind: 'choice-pool', label: c.label + ' (w' + p.weight + ')' });
+                Object.keys(cols).forEach(function (l) {
+                    cols[l].forEach(function (id, i) {
+                        positions[id] = { x: 60 + Number(l) * 280, y: 50 + i * 150 };
                     });
-                });
-            });
-            const pairCount = {};
-            edges.forEach(function (edge) {
-                const key = edge.from + '->' + edge.to;
-                pairCount[key] = (pairCount[key] || 0);
-                edge._offset = pairCount[key];
-                pairCount[key] += 1;
-            });
-            return edges;
-        }
-
-        const EDGE_COLOR = { next: '#5a9a5a', pool: '#6a9ab0', 'choice-next': '#c08a5a', 'choice-pool': '#c08a5a' };
-        const EDGE_MARKER = { next: 'url(#arrow-next)', pool: 'url(#arrow-pool)', 'choice-next': 'url(#arrow-choice)', 'choice-pool': 'url(#arrow-choice)' };
-        const EDGE_DASH = { next: null, pool: '5,4', 'choice-next': null, 'choice-pool': '5,4' };
-
-        function render() {
-            while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
-
-            const edges = buildEdges();
-            const edgeLayer = el('g', {});
-            const nodeLayer = el('g', {});
-            viewport.appendChild(edgeLayer);
-            viewport.appendChild(nodeLayer);
-
-            function redrawEdges() {
-                while (edgeLayer.firstChild) edgeLayer.removeChild(edgeLayer.firstChild);
-                edges.forEach(function (edge) {
-                    const from = anchorPoint(edge.from, 'right');
-                    const to = anchorPoint(edge.to, 'left');
-                    const curveOffset = 40 + edge._offset * 22;
-                    const midY = (from.y + to.y) / 2 + (edge._offset % 2 === 0 ? edge._offset : -edge._offset) * 6;
-                    const c1x = from.x + curveOffset, c1y = from.y;
-                    const c2x = to.x - curveOffset, c2y = to.y;
-                    const path = el('path', {
-                        d: 'M ' + from.x + ' ' + from.y + ' C ' + c1x + ' ' + c1y + ', ' + c2x + ' ' + c2y + ', ' + to.x + ' ' + to.y,
-                        fill: 'none',
-                        stroke: EDGE_COLOR[edge.kind],
-                        'stroke-width': '2',
-                        'marker-end': EDGE_MARKER[edge.kind]
-                    });
-                    if (EDGE_DASH[edge.kind]) path.setAttribute('stroke-dasharray', EDGE_DASH[edge.kind]);
-                    edgeLayer.appendChild(path);
-
-                    if (edge.label) {
-                        const t = 0.5;
-                        const lx = Math.pow(1 - t, 3) * from.x + 3 * Math.pow(1 - t, 2) * t * c1x + 3 * (1 - t) * t * t * c2x + t * t * t * to.x;
-                        const ly = Math.pow(1 - t, 3) * from.y + 3 * Math.pow(1 - t, 2) * t * c1y + 3 * (1 - t) * t * t * c2y + t * t * t * to.y;
-                        const bg = el('rect', { x: lx - 30, y: ly - 9, width: 60, height: 16, rx: 4, fill: '#0f1414', opacity: '0.85' });
-                        const label = el('text', { x: lx, y: ly + 3, 'text-anchor': 'middle', 'font-size': '10', fill: EDGE_COLOR[edge.kind] });
-                        label.textContent = edge.label.length > 14 ? edge.label.slice(0, 13) + '…' : edge.label;
-                        edgeLayer.appendChild(bg);
-                        edgeLayer.appendChild(label);
-                    }
                 });
             }
 
-            events.forEach(function (ev) {
-                const p = positions[ev.id];
-                const g = el('g', { transform: 'translate(' + p.x + ',' + p.y + ')', style: 'cursor:grab;' });
-                const isStart = ev.id === scenario.startEventId;
+            let hasAny = false;
+            events.forEach(function (e) { if (positions[e.id]) hasAny = true; });
+            if (!hasAny) autoLayout();
+            events.forEach(function (e) { if (!positions[e.id]) positions[e.id] = { x: 60, y: 60 }; });
 
-                const rect = el('rect', {
-                    width: NODE_W, height: NODE_H, rx: 8,
-                    fill: '#1a2022', stroke: isStart ? '#e0c060' : '#3a4a3a', 'stroke-width': isStart ? '2' : '1'
-                });
-                g.appendChild(rect);
-
-                const title = el('text', { x: 10, y: 20, 'font-size': '13', fill: '#c8e6c8', 'font-weight': '600' });
-                title.textContent = (isStart ? '★ ' : '') + (ev.name || ev.id);
-                g.appendChild(title);
-
-                const idText = el('text', { x: 10, y: 36, 'font-size': '10', fill: '#7a9a7a' });
-                idText.textContent = ev.id;
-                g.appendChild(idText);
-
-                const badges = [];
-                if (ev.condition && ev.condition['@type'] !== 'ALWAYS_TRUE' && ev.condition.type !== 'ALWAYS_TRUE') badges.push('condition');
-                if (ev.actions && ev.actions.length) badges.push(ev.actions.length + ' actions');
-                if (ev.choices && ev.choices.length) badges.push(ev.choices.length + ' choices');
-                if (ev.cooldownTicks) badges.push('cd ' + ev.cooldownTicks);
-                const badgeText = el('text', { x: 10, y: 52, 'font-size': '9.5', fill: '#8a9a8a' });
-                badgeText.textContent = badges.join(' · ') || 'no condition / auto';
-                g.appendChild(badgeText);
-
-                const editLink = el('a', {});
-                editLink.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '/scenarios/' + scenario.id + '/events/' + encodeURIComponent(ev.id) + '/edit');
-                const editText = el('text', { x: 10, y: 74, 'font-size': '11', fill: '#7ab0e0', 'text-decoration': 'underline' });
-                editText.textContent = 'Edit event →';
-                editLink.appendChild(editText);
-                g.appendChild(editLink);
-
-                nodeLayer.appendChild(g);
-
-                let dragging = false, moved = false, startX, startY, origX, origY;
-                g.addEventListener('mousedown', function (evt) {
-                    if (evt.target === editText || evt.target === editLink) return;
-                    dragging = true; moved = false;
-                    startX = evt.clientX; startY = evt.clientY;
-                    origX = positions[ev.id].x; origY = positions[ev.id].y;
-                    evt.stopPropagation();
-                });
-                window.addEventListener('mousemove', function (evt) {
-                    if (!dragging) return;
-                    const dx = (evt.clientX - startX) / scale;
-                    const dy = (evt.clientY - startY) / scale;
-                    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
-                    positions[ev.id] = { x: origX + dx, y: origY + dy };
-                    g.setAttribute('transform', 'translate(' + positions[ev.id].x + ',' + positions[ev.id].y + ')');
-                    redrawEdges();
-                });
-                window.addEventListener('mouseup', function () {
-                    if (dragging && moved) savePositions();
-                    dragging = false;
-                });
-            });
-
-            redrawEdges();
-        }
-
-        render();
-        applyTransform();
-
-        let panning = false, panStartX, panStartY, origPanX, origPanY;
-        svg.addEventListener('mousedown', function (evt) {
-            if (evt.target !== svg) return;
-            panning = true;
-            panStartX = evt.clientX; panStartY = evt.clientY;
-            origPanX = panX; origPanY = panY;
-            svg.style.cursor = 'grabbing';
-        });
-        window.addEventListener('mousemove', function (evt) {
-            if (!panning) return;
-            panX = origPanX + (evt.clientX - panStartX);
-            panY = origPanY + (evt.clientY - panStartY);
-            applyTransform();
-        });
-        window.addEventListener('mouseup', function () { panning = false; svg.style.cursor = 'grab'; });
-
-        svg.addEventListener('wheel', function (evt) {
-            evt.preventDefault();
-            const factor = evt.deltaY < 0 ? 1.1 : 0.9;
-            scale = Math.min(2.5, Math.max(0.3, scale * factor));
-            applyTransform();
-        }, { passive: false });
-
-        document.getElementById('btn-zoom-in').addEventListener('click', function () {
-            scale = Math.min(2.5, scale * 1.2); applyTransform();
-        });
-        document.getElementById('btn-zoom-out').addEventListener('click', function () {
-            scale = Math.max(0.3, scale * 0.8); applyTransform();
-        });
-        document.getElementById('btn-fit').addEventListener('click', function () {
-            if (!events.length) return;
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            events.forEach(function (e) {
-                const p = positions[e.id];
-                minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
-                maxX = Math.max(maxX, p.x + NODE_W); maxY = Math.max(maxY, p.y + NODE_H);
-            });
-            const svgRect = svg.getBoundingClientRect();
-            const w = maxX - minX + 80, h = maxY - minY + 80;
-            scale = Math.min(2, Math.max(0.3, Math.min(svgRect.width / w, svgRect.height / h)));
-            panX = -minX * scale + 40;
-            panY = -minY * scale + 40;
-            applyTransform();
-        });
-        document.getElementById('btn-reset-layout').addEventListener('click', function () {
-            if (!confirm('Reset node positions to the auto-generated layout?')) return;
-            positions = {};
-            autoLayout();
+            function savePositions() {
+                try { localStorage.setItem(storageKey, JSON.stringify(positions)); } catch (e) { /* ignore quota errors */ }
+            }
             savePositions();
+
+            const svg = document.getElementById('graph-svg');
+            const viewport = document.getElementById('viewport');
+            const SVGNS = 'http://www.w3.org/2000/svg';
+
+            let panX = 0, panY = 0, scale = 1;
+            function applyTransform() {
+                viewport.setAttribute('transform', 'translate(' + panX + ',' + panY + ') scale(' + scale + ')');
+            }
+
+            function el(tag, attrs) {
+                const n = document.createElementNS(SVGNS, tag);
+                Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+                return n;
+            }
+
+            function anchorPoint(id, side) {
+                const p = positions[id];
+                if (!p) return { x: 0, y: 0 };
+                return side === 'right'
+                    ? { x: p.x + NODE_W, y: p.y + NODE_H / 2 }
+                    : { x: p.x, y: p.y + NODE_H / 2 };
+            }
+
+            function buildEdges() {
+                const edges = [];
+                events.forEach(function (ev) {
+                    if (ev.nextEventId && byId[ev.nextEventId]) {
+                        edges.push({ from: ev.id, to: ev.nextEventId, kind: 'next', label: null });
+                    }
+                    (ev.nextEventPool || []).forEach(function (p) {
+                        if (byId[p.eventId]) edges.push({ from: ev.id, to: p.eventId, kind: 'pool', label: 'w' + p.weight });
+                    });
+                    (ev.choices || []).forEach(function (c) {
+                        if (c.nextEventId && byId[c.nextEventId]) {
+                            edges.push({ from: ev.id, to: c.nextEventId, kind: 'choice-next', label: c.label, choiceId: c.id });
+                        }
+                        (c.nextEventPool || []).forEach(function (p) {
+                            if (byId[p.eventId]) edges.push({ from: ev.id, to: p.eventId, kind: 'choice-pool', label: c.label + ' (w' + p.weight + ')', choiceId: c.id });
+                        });
+                    });
+                });
+                const pairCount = {};
+                edges.forEach(function (edge) {
+                    const key = edge.from + '->' + edge.to;
+                    pairCount[key] = (pairCount[key] || 0);
+                    edge._offset = pairCount[key];
+                    pairCount[key] += 1;
+                });
+                return edges;
+            }
+
+            const EDGE_COLOR = { next: '#5a9a5a', pool: '#6a9ab0', 'choice-next': '#c08a5a', 'choice-pool': '#c08a5a' };
+            const EDGE_MARKER = { next: 'url(#arrow-next)', pool: 'url(#arrow-pool)', 'choice-next': 'url(#arrow-choice)', 'choice-pool': 'url(#arrow-choice)' };
+            const EDGE_DASH = { next: null, pool: '5,4', 'choice-next': null, 'choice-pool': '5,4' };
+
+            let selectedEdge = null;
+            let editMode = false;
+
+            function render() {
+                while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
+
+                const edges = buildEdges();
+                const edgeLayer = el('g', {});
+                const nodeLayer = el('g', {});
+                viewport.appendChild(edgeLayer);
+                viewport.appendChild(nodeLayer);
+
+                function redrawEdges() {
+                    while (edgeLayer.firstChild) edgeLayer.removeChild(edgeLayer.firstChild);
+                    edges.forEach(function (edge) {
+                        const from = anchorPoint(edge.from, 'right');
+                        const to = anchorPoint(edge.to, 'left');
+                        const curveOffset = 40 + edge._offset * 22;
+                        const c1x = from.x + curveOffset, c1y = from.y;
+                        const c2x = to.x - curveOffset, c2y = to.y;
+                        const path = el('path', {
+                            d: 'M ' + from.x + ' ' + from.y + ' C ' + c1x + ' ' + c1y + ', ' + c2x + ' ' + c2y + ', ' + to.x + ' ' + to.y,
+                            fill: 'none',
+                            stroke: EDGE_COLOR[edge.kind],
+                            'stroke-width': selectedEdge === edge ? '4' : '2',
+                            'marker-end': EDGE_MARKER[edge.kind]
+                        });
+                        if (EDGE_DASH[edge.kind]) path.setAttribute('stroke-dasharray', EDGE_DASH[edge.kind]);
+                        path.style.cursor = editMode ? 'pointer' : 'default';
+                        path.addEventListener('click', function (evt) {
+                            if (!editMode) return;
+                            evt.stopPropagation();
+                            selectedEdge = (selectedEdge === edge) ? null : edge;
+                            redrawEdges();
+                        });
+                        edgeLayer.appendChild(path);
+
+                        if (edge.label) {
+                            const t = 0.5;
+                            const lx = Math.pow(1 - t, 3) * from.x + 3 * Math.pow(1 - t, 2) * t * c1x + 3 * (1 - t) * t * t * c2x + t * t * t * to.x;
+                            const ly = Math.pow(1 - t, 3) * from.y + 3 * Math.pow(1 - t, 2) * t * c1y + 3 * (1 - t) * t * t * c2y + t * t * t * to.y;
+                            const bg = el('rect', { x: lx - 30, y: ly - 9, width: 60, height: 16, rx: 4, fill: '#0f1414', opacity: '0.85' });
+                            const label = el('text', { x: lx, y: ly + 3, 'text-anchor': 'middle', 'font-size': '10', fill: EDGE_COLOR[edge.kind] });
+                            label.textContent = edge.label.length > 14 ? edge.label.slice(0, 13) + '…' : edge.label;
+                            edgeLayer.appendChild(bg);
+                            edgeLayer.appendChild(label);
+                        }
+                    });
+                }
+
+                events.forEach(function (ev) {
+                    const p = positions[ev.id];
+                    const g = el('g', { transform: 'translate(' + p.x + ',' + p.y + ')', 'data-event-id': ev.id, style: 'cursor:grab;' });
+                    const isStart = ev.id === scenario.startEventId;
+
+                    const rect = el('rect', {
+                        width: NODE_W, height: NODE_H, rx: 8,
+                        fill: '#1a2022', stroke: isStart ? '#e0c060' : '#3a4a3a', 'stroke-width': isStart ? '2' : '1'
+                    });
+                    g.appendChild(rect);
+
+                    const title = el('text', { x: 10, y: 20, 'font-size': '13', fill: '#c8e6c8', 'font-weight': '600' });
+                    title.textContent = (isStart ? '★ ' : '') + (ev.name || ev.id);
+                    g.appendChild(title);
+
+                    const idText = el('text', { x: 10, y: 36, 'font-size': '10', fill: '#7a9a7a' });
+                    idText.textContent = ev.id;
+                    g.appendChild(idText);
+
+                    const badges = [];
+                    if (ev.condition && ev.condition.type !== 'ALWAYS_TRUE') badges.push('condition');
+                    if (ev.actions && ev.actions.length) badges.push(ev.actions.length + ' actions');
+                    if (ev.choices && ev.choices.length) badges.push(ev.choices.length + ' choices');
+                    if (ev.cooldownTicks) badges.push('cd ' + ev.cooldownTicks);
+                    const badgeText = el('text', { x: 10, y: 52, 'font-size': '9.5', fill: '#8a9a8a' });
+                    badgeText.textContent = badges.join(' · ') || 'no condition / auto';
+                    g.appendChild(badgeText);
+
+                    const editLink = el('a', {});
+                    editLink.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '/scenarios/' + scenario.id + '/events/' + encodeURIComponent(ev.id) + '/edit');
+                    const editText = el('text', { x: 10, y: 74, 'font-size': '11', fill: '#7ab0e0', 'text-decoration': 'underline' });
+                    editText.textContent = 'Edit event →';
+                    editLink.appendChild(editText);
+                    g.appendChild(editLink);
+
+                    if (editMode) {
+                        const handle = el('circle', { cx: NODE_W, cy: NODE_H / 2, r: 6, fill: '#6a9ab0', stroke: '#0f1414', 'stroke-width': '1.5', style: 'cursor:crosshair;' });
+                        g.appendChild(handle);
+                        handle.addEventListener('mousedown', function (evt) {
+                            evt.stopPropagation();
+                            startConnectDrag(ev.id, null);
+                        });
+
+                        const delBtn = el('text', { x: NODE_W - 16, y: 14, 'font-size': '13', fill: '#d08080', style: 'cursor:pointer;' });
+                        delBtn.textContent = '✕';
+                        delBtn.addEventListener('mousedown', function (evt) { evt.stopPropagation(); });
+                        delBtn.addEventListener('click', async function (evt) {
+                            evt.stopPropagation();
+                            if (!confirm('Delete event "' + ev.id + '" and all its choices?')) return;
+                            const ok = await apiCall('DELETE', EVENTS_API + '/' + encodeURIComponent(ev.id));
+                            if (ok) {
+                                removeLocalEvent(ev.id);
+                                document.getElementById('inspector').style.display = 'none';
+                                render();
+                            }
+                        });
+                        g.appendChild(delBtn);
+
+                        (ev.choices || []).forEach(function (choice, idx) {
+                            const cy = NODE_H + 14 + idx * 16;
+                            const label = el('text', { x: 4, y: cy + 4, 'font-size': '9', fill: '#c08a5a', style: 'cursor:crosshair;' });
+                            label.textContent = '↳ ' + choice.label + ' →';
+                            label.addEventListener('mousedown', function (evt) {
+                                evt.stopPropagation();
+                                startConnectDrag(ev.id, choice.id);
+                            });
+                            g.appendChild(label);
+                        });
+
+                        g.addEventListener('click', function (evt) {
+                            if (evt.defaultPrevented) return;
+                            openInspector(ev.id);
+                        });
+                    }
+
+                    nodeLayer.appendChild(g);
+
+                    let dragging = false, moved = false, startX, startY, origX, origY;
+                    g.addEventListener('mousedown', function (evt) {
+                        if (evt.target === editText || evt.target === editLink) return;
+                        if (evt.target.closest && evt.target.closest('.remove-btn')) return;
+                        dragging = true; moved = false;
+                        startX = evt.clientX; startY = evt.clientY;
+                        origX = positions[ev.id].x; origY = positions[ev.id].y;
+                        evt.stopPropagation();
+                    });
+                    window.addEventListener('mousemove', function (evt) {
+                        if (!dragging) return;
+                        const dx = (evt.clientX - startX) / scale;
+                        const dy = (evt.clientY - startY) / scale;
+                        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
+                        positions[ev.id] = { x: origX + dx, y: origY + dy };
+                        g.setAttribute('transform', 'translate(' + positions[ev.id].x + ',' + positions[ev.id].y + ')');
+                        redrawEdges();
+                    });
+                    window.addEventListener('mouseup', function () {
+                        if (dragging && moved) savePositions();
+                        dragging = false;
+                    });
+                });
+
+                redrawEdges();
+            }
+
             render();
-        });
-    })();
+            applyTransform();
+
+            // Connect dragging
+            let connecting = null;
+            let tempLine = null;
+
+            function startConnectDrag(fromEventId, fromChoiceId) {
+                connecting = { fromEventId: fromEventId, fromChoiceId: fromChoiceId };
+                tempLine = el('line', { stroke: '#e0c060', 'stroke-width': '2', 'stroke-dasharray': '4,3' });
+                viewport.appendChild(tempLine);
+            }
+
+            svg.addEventListener('mousemove', function (evt) {
+                if (!connecting || !tempLine) return;
+                const rect = svg.getBoundingClientRect();
+                const from = anchorPoint(connecting.fromEventId, 'right');
+                const x = (evt.clientX - rect.left - panX) / scale;
+                const y = (evt.clientY - rect.top - panY) / scale;
+                tempLine.setAttribute('x1', from.x);
+                tempLine.setAttribute('y1', from.y);
+                tempLine.setAttribute('x2', x);
+                tempLine.setAttribute('y2', y);
+            });
+
+            window.addEventListener('mouseup', async function (evt) {
+                if (!connecting) return;
+                const elements = document.elementsFromPoint(evt.clientX, evt.clientY);
+                const targetGroup = elements.find(el => el.closest && el.closest('[data-event-id]'));
+                const targetId = targetGroup ? targetGroup.closest('[data-event-id]').getAttribute('data-event-id') : null;
+
+                if (tempLine) tempLine.remove();
+                const from = connecting;
+                connecting = null;
+                tempLine = null;
+
+                if (!targetId || targetId === from.fromEventId) return;
+
+                const dto = JSON.parse(JSON.stringify(byId[from.fromEventId]));
+                if (from.fromChoiceId) {
+                    const choice = dto.choices.find(c => c.id === from.fromChoiceId);
+                    if (choice) choice.nextEventId = targetId;
+                } else {
+                    dto.nextEventId = targetId;
+                }
+                const result = await apiFetch('PUT', EVENTS_API + '/' + encodeURIComponent(from.fromEventId), dto);
+                if (result) {
+                    upsertLocalEvent(result);
+                    render();
+                }
+            });
+
+            let panning = false, panStartX, panStartY, origPanX, origPanY;
+            svg.addEventListener('mousedown', function (evt) {
+                if (evt.target !== svg) return;
+                panning = true;
+                panStartX = evt.clientX; panStartY = evt.clientY;
+                origPanX = panX; origPanY = panY;
+                svg.style.cursor = 'grabbing';
+            });
+            window.addEventListener('mousemove', function (evt) {
+                if (!panning) return;
+                panX = origPanX + (evt.clientX - panStartX);
+                panY = origPanY + (evt.clientY - panStartY);
+                applyTransform();
+            });
+            window.addEventListener('mouseup', function () { panning = false; svg.style.cursor = editMode ? 'crosshair' : 'grab'; });
+
+            svg.addEventListener('wheel', function (evt) {
+                evt.preventDefault();
+                const factor = evt.deltaY < 0 ? 1.1 : 0.9;
+                scale = Math.min(2.5, Math.max(0.3, scale * factor));
+                applyTransform();
+            }, { passive: false });
+
+            document.getElementById('btn-zoom-in').addEventListener('click', function () { scale = Math.min(2.5, scale * 1.2); applyTransform(); });
+            document.getElementById('btn-zoom-out').addEventListener('click', function () { scale = Math.max(0.3, scale * 0.8); applyTransform(); });
+
+            document.getElementById('btn-fit').addEventListener('click', function () {
+                if (!events.length) return;
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                events.forEach(function (e) {
+                    const p = positions[e.id];
+                    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+                    maxX = Math.max(maxX, p.x + NODE_W); maxY = Math.max(maxY, p.y + NODE_H);
+                });
+                const svgRect = svg.getBoundingClientRect();
+                const w = maxX - minX + 80, h = maxY - minY + 80;
+                scale = Math.min(2, Math.max(0.3, Math.min(svgRect.width / w, svgRect.height / h)));
+                panX = -minX * scale + 40;
+                panY = -minY * scale + 40;
+                applyTransform();
+            });
+
+            document.getElementById('btn-reset-layout').addEventListener('click', function () {
+                if (!confirm('Reset node positions to the auto-generated layout?')) return;
+                positions = {};
+                autoLayout();
+                savePositions();
+                render();
+            });
+
+            // Edit mode
+            const editBtn = document.getElementById('btn-edit-mode');
+            editBtn.addEventListener('click', function () {
+                editMode = !editMode;
+                this.textContent = '✏ Edit Mode: ' + (editMode ? 'ON' : 'OFF');
+                svg.style.cursor = editMode ? 'crosshair' : 'grab';
+                render();
+            });
+
+            // Double-click to create event
+            svg.addEventListener('dblclick', function (evt) {
+                if (!editMode || evt.target !== svg) return;
+                const rect = svg.getBoundingClientRect();
+                const x = (evt.clientX - rect.left - panX) / scale;
+                const y = (evt.clientY - rect.top - panY) / scale;
+                openInspector(null, { x: x, y: y });
+            });
+
+            // Delete key to remove selected edge
+            document.addEventListener('keydown', async function (evt) {
+                if (!editMode || !selectedEdge || (evt.key !== 'Delete' && evt.key !== 'Backspace')) return;
+                const edge = selectedEdge;
+                selectedEdge = null;
+                const dto = JSON.parse(JSON.stringify(byId[edge.from]));
+                if (edge.kind === 'next') {
+                    dto.nextEventId = null;
+                } else if (edge.kind === 'choice-next') {
+                    const choice = dto.choices.find(c => c.id === edge.choiceId);
+                    if (choice) choice.nextEventId = null;
+                } else {
+                    alert('Deleting weighted pool edges is not supported in the graph editor. Please use the event form.');
+                    return;
+                }
+                const result = await apiFetch('PUT', EVENTS_API + '/' + encodeURIComponent(edge.from), dto);
+                if (result) {
+                    upsertLocalEvent(result);
+                    render();
+                }
+            });
+
+            // API helpers
+            async function apiCall(method, path, body) {
+                const res = await fetch(path, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body ? JSON.stringify(body) : undefined
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(function () { return { message: res.statusText }; });
+                    alert(err.message || 'Request failed');
+                    return false;
+                }
+                return res.status === 204 ? true : res.json();
+            }
+
+            async function apiFetch(method, path, body) {
+                const res = await fetch(path, {
+                    method: method,
+                    headers: body ? { 'Content-Type': 'application/json' } : {},
+                    body: body ? JSON.stringify(body) : undefined
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(function () { return { message: res.statusText }; });
+                    alert(err.message || 'Request failed');
+                    return null;
+                }
+                return res.status === 204 ? true : res.json();
+            }
+
+            function upsertLocalEvent(dto) {
+                const idx = events.findIndex(function (e) { return e.id === dto.id; });
+                if (idx >= 0) events[idx] = dto; else events.push(dto);
+                byId[dto.id] = dto;
+                if (!positions[dto.id]) positions[dto.id] = { x: 60, y: 60 };
+                savePositions();
+            }
+
+            function removeLocalEvent(id) {
+                const idx = events.findIndex(function (e) { return e.id === id; });
+                if (idx >= 0) events.splice(idx, 1);
+                delete byId[id];
+                delete positions[id];
+                savePositions();
+            }
+
+            // Inspector
+            const inspectorPanel = document.getElementById('inspector');
+            const inspectorBody = document.getElementById('inspector-body');
+            const inspectorTitle = document.getElementById('inspector-title');
+            let inspectorEventId = null;
+            let inspectorNewAt = null;
+
+            function openInspector(eventId, newAt) {
+                inspectorEventId = eventId;
+                inspectorNewAt = newAt || null;
+                const isNew = eventId === null;
+                const dto = isNew
+                    ? { id: '', name: '', description: '', condition: { type: 'ALWAYS_TRUE' }, actions: [], choices: [], nextEventId: null, cooldownTicks: 0, nextEventPool: [] }
+                    : JSON.parse(JSON.stringify(byId[eventId]));
+
+                inspectorTitle.textContent = isNew ? 'New Event' : 'Edit: ' + eventId;
+                inspectorBody.innerHTML = buildInspectorForm(dto, isNew);
+                wireInspectorForm(dto, isNew);
+                inspectorPanel.style.display = 'block';
+            }
+
+            function closeInspector() {
+                inspectorPanel.style.display = 'none';
+            }
+            document.getElementById('inspector-close').addEventListener('click', closeInspector);
+
+            function existingIds() {
+                return events.map(function (e) { return e.id; });
+            }
+
+            // ---------- Build form ----------
+            function buildInspectorForm(dto, isNew) {
+                let html = '';
+
+                // ID
+                html += '<div style="margin-bottom:0.8rem;">';
+                html += '<label style="display:block;color:#8a9a8a;font-size:0.85rem;">Event ID</label>';
+                html += '<input id="insp-id" type="text" value="' + (dto.id || '') + '" ' + (isNew ? '' : 'readonly') + ' style="width:100%;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">';
+                html += '</div>';
+
+                // Name
+                html += '<div style="margin-bottom:0.8rem;">';
+                html += '<label style="display:block;color:#8a9a8a;font-size:0.85rem;">Name</label>';
+                html += '<input id="insp-name" type="text" value="' + (dto.name || '') + '" style="width:100%;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">';
+                html += '</div>';
+
+                // Description
+                html += '<div style="margin-bottom:0.8rem;">';
+                html += '<label style="display:block;color:#8a9a8a;font-size:0.85rem;">Description</label>';
+                html += '<textarea id="insp-desc" rows="2" style="width:100%;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">' + (dto.description || '') + '</textarea>';
+                html += '</div>';
+
+                // Next Event
+                html += '<div style="margin-bottom:0.8rem;">';
+                html += '<label style="display:block;color:#8a9a8a;font-size:0.85rem;">Next Event</label>';
+                html += '<select id="insp-next" style="width:100%;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">';
+                html += '<option value="">(END)</option>';
+                existingIds().forEach(function (id) {
+                    const sel = (dto.nextEventId === id) ? 'selected' : '';
+                    html += '<option value="' + id + '" ' + sel + '>' + id + '</option>';
+                });
+                html += '</select>';
+                html += '</div>';
+
+                // Cooldown
+                html += '<div style="margin-bottom:0.8rem;">';
+                html += '<label style="display:block;color:#8a9a8a;font-size:0.85rem;">Cooldown (ticks)</label>';
+                html += '<input id="insp-cooldown" type="number" min="0" value="' + (dto.cooldownTicks || 0) + '" style="width:100%;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">';
+                html += '</div>';
+
+                // Random pool
+                html += '<div style="margin-bottom:0.8rem;">';
+                html += '<label style="display:block;color:#8a9a8a;font-size:0.85rem;">Random Pool (weighted)</label>';
+                html += '<div id="insp-pool">';
+                (dto.nextEventPool || []).forEach(function (p, idx) {
+                    html += '<div style="display:flex;gap:0.4rem;margin-bottom:0.3rem;">';
+                    html += '<select class="pool-event" data-idx="' + idx + '" style="flex:1;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">';
+                    html += '<option value="">-- pick event --</option>';
+                    existingIds().forEach(function (id) {
+                        const sel = (p.eventId === id) ? 'selected' : '';
+                        html += '<option value="' + id + '" ' + sel + '>' + id + '</option>';
+                    });
+                    html += '</select>';
+                    html += '<input type="number" step="any" min="0.01" class="pool-weight" data-idx="' + idx + '" value="' + (p.weight || 1.0) + '" style="width:70px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">';
+                    html += '<button type="button" class="remove-pool btn btn-outline" style="padding:0.1rem 0.5rem;">✕</button>';
+                    html += '</div>';
+                });
+                html += '</div>';
+                html += '<button id="insp-add-pool" type="button" class="btn btn-outline" style="padding:0.2rem 0.6rem;font-size:0.85rem;">+ Add Candidate</button>';
+                html += '</div>';
+
+                // Choices
+                html += '<div style="margin-bottom:0.8rem;">';
+                html += '<label style="display:block;color:#8a9a8a;font-size:0.85rem;">Choices</label>';
+                html += '<div id="insp-choices">';
+                (dto.choices || []).forEach(function (c, idx) {
+                    html += '<div style="display:flex;gap:0.4rem;margin-bottom:0.3rem;align-items:center;">';
+                    html += '<input type="text" class="choice-id" data-idx="' + idx + '" value="' + (c.id || '') + '" placeholder="id" style="flex:1;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">';
+                    html += '<input type="text" class="choice-label" data-idx="' + idx + '" value="' + (c.label || '') + '" placeholder="label" style="flex:1;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">';
+                    html += '<select class="choice-next" data-idx="' + idx + '" style="padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">';
+                    html += '<option value="">(END)</option>';
+                    existingIds().forEach(function (id) {
+                        const sel = (c.nextEventId === id) ? 'selected' : '';
+                        html += '<option value="' + id + '" ' + sel + '>' + id + '</option>';
+                    });
+                    html += '</select>';
+                    html += '<button type="button" class="remove-choice btn btn-outline" style="padding:0.1rem 0.5rem;">✕</button>';
+                    html += '</div>';
+                });
+                html += '</div>';
+                html += '<button id="insp-add-choice" type="button" class="btn btn-outline" style="padding:0.2rem 0.6rem;font-size:0.85rem;">+ Add Choice</button>';
+                html += '</div>';
+
+                html += '<div style="border-top:1px solid #2a3a2a;padding-top:0.8rem;display:flex;gap:0.6rem;">';
+                html += '<button id="insp-save" class="btn btn-primary" style="flex:1;">💾 Save</button>';
+                html += '<button id="insp-cancel" class="btn btn-outline">Cancel</button>';
+                html += '</div>';
+
+                return html;
+            }
+
+            // ---------- Wire form ----------
+            function wireInspectorForm(dto, isNew) {
+                const saveBtn = document.getElementById('insp-save');
+                const cancelBtn = document.getElementById('insp-cancel');
+
+                // Add pool
+                document.getElementById('insp-add-pool').addEventListener('click', function () {
+                    const container = document.getElementById('insp-pool');
+                    const idx = container.children.length;
+                    const div = document.createElement('div');
+                    div.style.display = 'flex';
+                    div.style.gap = '0.4rem';
+                    div.style.marginBottom = '0.3rem';
+                    div.innerHTML = `
+                    <select class="pool-event" data-idx="${idx}" style="flex:1;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                        <option value="">-- pick event --</option>
+                        ${existingIds().map(id => `<option value="${id}">${id}</option>`).join('')}
+                    </select>
+                    <input type="number" step="any" min="0.01" class="pool-weight" data-idx="${idx}" value="1.0" style="width:70px;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <button type="button" class="remove-pool btn btn-outline" style="padding:0.1rem 0.5rem;">✕</button>
+                `;
+                    container.appendChild(div);
+                    div.querySelector('.remove-pool').addEventListener('click', function () { div.remove(); });
+                });
+
+                // Add choice
+                document.getElementById('insp-add-choice').addEventListener('click', function () {
+                    const container = document.getElementById('insp-choices');
+                    const idx = container.children.length;
+                    const div = document.createElement('div');
+                    div.style.display = 'flex';
+                    div.style.gap = '0.4rem';
+                    div.style.marginBottom = '0.3rem';
+                    div.style.alignItems = 'center';
+                    div.innerHTML = `
+                    <input type="text" class="choice-id" data-idx="${idx}" placeholder="id" style="flex:1;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <input type="text" class="choice-label" data-idx="${idx}" placeholder="label" style="flex:1;padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <select class="choice-next" data-idx="${idx}" style="padding:0.3rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                        <option value="">(END)</option>
+                        ${existingIds().map(id => `<option value="${id}">${id}</option>`).join('')}
+                    </select>
+                    <button type="button" class="remove-choice btn btn-outline" style="padding:0.1rem 0.5rem;">✕</button>
+                `;
+                    container.appendChild(div);
+                    div.querySelector('.remove-choice').addEventListener('click', function () { div.remove(); });
+                });
+
+                // Remove buttons for existing (delegation)
+                document.getElementById('insp-pool').addEventListener('click', function (e) {
+                    if (e.target.classList.contains('remove-pool')) e.target.parentElement.remove();
+                });
+                document.getElementById('insp-choices').addEventListener('click', function (e) {
+                    if (e.target.classList.contains('remove-choice')) e.target.parentElement.remove();
+                });
+
+                // Save
+                saveBtn.addEventListener('click', async function () {
+                    const id = document.getElementById('insp-id').value.trim();
+                    if (!id) { alert('Event ID is required.'); return; }
+                    if (!id.match(/^[a-zA-Z0-9_-]+$/)) { alert('Event ID may only contain letters, numbers, hyphens and underscores.'); return; }
+                    if (isNew && byId[id]) { alert('An event with id "' + id + '" already exists.'); return; }
+
+                    const name = document.getElementById('insp-name').value.trim() || id;
+                    const description = document.getElementById('insp-desc').value.trim();
+                    const nextEventId = document.getElementById('insp-next').value || null;
+                    const cooldownTicks = parseInt(document.getElementById('insp-cooldown').value) || 0;
+
+                    // Read pool
+                    const pool = [];
+                    document.querySelectorAll('#insp-pool .pool-event').forEach(function (sel) {
+                        const eventId = sel.value;
+                        const weightInput = sel.parentElement.querySelector('.pool-weight');
+                        const weight = parseFloat(weightInput ? weightInput.value : '1.0');
+                        if (eventId && weight > 0) pool.push({ eventId: eventId, weight: weight });
+                    });
+
+                    // Read choices
+                    const choices = [];
+                    const choiceIds = document.querySelectorAll('#insp-choices .choice-id');
+                    const choiceLabels = document.querySelectorAll('#insp-choices .choice-label');
+                    const choiceNexts = document.querySelectorAll('#insp-choices .choice-next');
+                    for (let i = 0; i < choiceIds.length; i++) {
+                        const cid = choiceIds[i].value.trim();
+                        const clabel = choiceLabels[i].value.trim() || cid;
+                        const cnext = choiceNexts[i].value || null;
+                        if (cid) choices.push({ id: cid, label: clabel, nextEventId: cnext, condition: { type: 'ALWAYS_TRUE' }, actions: [], nextEventPool: [] });
+                    }
+
+                    const payload = {
+                        id: id,
+                        name: name,
+                        description: description,
+                        condition: { type: 'ALWAYS_TRUE' },
+                        actions: [],
+                        choices: choices,
+                        nextEventId: nextEventId,
+                        cooldownTicks: cooldownTicks,
+                        nextEventPool: pool
+                    };
+
+                    const result = isNew
+                        ? await apiFetch('POST', EVENTS_API, payload)
+                        : await apiFetch('PUT', EVENTS_API + '/' + encodeURIComponent(id), payload);
+
+                    if (result) {
+                        upsertLocalEvent(result);
+                        if (isNew && inspectorNewAt) positions[result.id] = inspectorNewAt;
+                        savePositions();
+                        closeInspector();
+                        render();
+                    }
+                });
+
+                cancelBtn.addEventListener('click', closeInspector);
+            }
+        })();
     </script>
 </div>
 

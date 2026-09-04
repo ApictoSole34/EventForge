@@ -11,8 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.stream.Collectors;
 
-@RestControllerAdvice(assignableTypes = {ScenarioController.class, GameController.class})
-public class GlobalExceptionHandler {
+@RestControllerAdvice(assignableTypes = {ScenarioController.class, GameController.class, EventApiController.class})public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 

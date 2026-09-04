@@ -35,17 +35,42 @@
 
         <div class="card">
             <div class="card-title" style="font-size:1.1rem;">Condition (optional)</div>
-            <p style="color:#7a8a7a;font-size:0.85rem;">Leave the variable blank for no condition. Only a single comparison is supported here — compound AND/OR conditions must be authored via the API/JSON.</p>
-            <div style="display:flex;gap:0.8rem;flex-wrap:wrap;margin-top:0.6rem;">
-                <input type="text" th:field="*{conditionVariable}" placeholder="variable (e.g. zombies)"
-                       style="flex:1;min-width:150px;padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
-                <select th:field="*{conditionOperator}" style="padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
-                    <option value="">--</option>
-                    <option th:each="op : ${operators}" th:value="${op}" th:text="${op}">GREATER_THAN</option>
-                </select>
-                <input type="number" step="any" th:field="*{conditionValue}" placeholder="value"
-                       style="width:120px;padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+            <p style="color:#7a8a7a;font-size:0.85rem;">
+                Leave empty for no condition. Add rows and combine them with AND/OR below;
+                tick "NOT" to negate a single row. Deeper nesting (e.g. an OR inside an AND)
+                still needs to be authored via the API/JSON.
+            </p>
+
+            <div th:if="${eventForm.complexCondition}" class="card" style="background:#2a2414;border-color:#6a5a2a;margin:0.6rem 0;">
+                <span style="color:#e0c060;">⚠ This event's existing condition is too complex for this form (nested AND/OR/NOT) and was left blank here. Saving will REPLACE it with whatever you configure below.</span>
             </div>
+
+            <div style="margin:0.6rem 0;">
+                <label>Combine rows with:</label>
+                <select th:field="*{conditionCombinator}" style="padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <option value="AND">ALL must be true (AND)</option>
+                    <option value="OR">ANY must be true (OR)</option>
+                </select>
+                <span style="color:#7a8a7a;font-size:0.8rem;"> (ignored with 0–1 rows)</span>
+            </div>
+
+            <div id="condition-container">
+                <div class="condition-row" th:each="cond, iter : *{conditions}" style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">
+                    <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;">
+                        <input type="checkbox" th:field="*{conditions[__${iter.index}__].negate}"> NOT
+                    </label>
+                    <input type="text" th:field="*{conditions[__${iter.index}__].variable}" placeholder="variable (e.g. zombies)"
+                           style="flex:1;min-width:150px;padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <select th:field="*{conditions[__${iter.index}__].operator}" style="padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                        <option value="">--</option>
+                        <option th:each="op : ${operators}" th:value="${op}" th:text="${op}">GREATER_THAN</option>
+                    </select>
+                    <input type="number" step="any" th:field="*{conditions[__${iter.index}__].value}" placeholder="value"
+                           style="width:120px;padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                    <button type="button" class="remove-row btn btn-outline" style="padding:0.3rem 0.7rem;">Remove</button>
+                </div>
+            </div>
+            <button type="button" id="add-condition" class="btn btn-outline">+ Add Condition Row</button>
         </div>
 
         <div class="card">
@@ -162,6 +187,11 @@
 
     <script th:inline="javascript">
         const nextEventOptions = /*[[${existingEventIds}]]*/ [];
+        const operatorOptions = /*[[${operators}]]*/ [];
+
+        function operatorOptionsHtml() {
+            return ['<option value="">--</option>'].concat(operatorOptions.map(op => `<option value="${op}">${op}</option>`)).join('');
+        }
 
         function eventOptionsHtml() {
             return ['<option value="">-- pick event --</option>']
@@ -189,6 +219,18 @@
             return `<div class="pool-row" style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">
                 <select name="nextEventPool[0].eventId" style="flex:1;min-width:150px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">${eventOptionsHtml()}</select>
                 <input type="number" step="any" min="0.01" name="nextEventPool[0].weight" placeholder="weight" style="width:100px;padding:0.4rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <button type="button" class="remove-row btn btn-outline" style="padding:0.3rem 0.7rem;">Remove</button>
+            </div>`;
+        }
+
+        function conditionRowHtml() {
+            return `<div class="condition-row" style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;">
+                    <input type="checkbox" name="conditions[0].negate"> NOT
+                </label>
+                <input type="text" name="conditions[0].variable" placeholder="variable (e.g. zombies)" style="flex:1;min-width:150px;padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
+                <select name="conditions[0].operator" style="padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">${operatorOptionsHtml()}</select>
+                <input type="number" step="any" name="conditions[0].value" placeholder="value" style="width:120px;padding:0.5rem;background:#0f1414;color:#d4d4d4;border:1px solid #2a3a2a;border-radius:4px;">
                 <button type="button" class="remove-row btn btn-outline" style="padding:0.3rem 0.7rem;">Remove</button>
             </div>`;
         }
@@ -252,6 +294,12 @@
                 });
             });
 
+            document.querySelectorAll('#condition-container > .condition-row').forEach((row, idx) => {
+                row.querySelectorAll('[name^="conditions["]').forEach(input => {
+                    input.name = input.name.replace(/^conditions\[\d+\]/, `conditions[${idx}]`);
+                });
+            });
+
             document.querySelectorAll('#choices-container > .choice-row').forEach((choiceRow, cIdx) => {
                 choiceRow.querySelectorAll('[name^="choices["]').forEach(input => {
                     const nestedAction = input.name.match(/^choices\[\d+\]\.actions\[(\d+)\]\.(.+)$/);
@@ -291,6 +339,11 @@
             reindexAll();
         });
 
+        document.getElementById('add-condition').addEventListener('click', () => {
+            document.getElementById('condition-container').insertAdjacentHTML('beforeend', conditionRowHtml());
+            reindexAll();
+        });
+
         document.getElementById('add-choice').addEventListener('click', () => {
             document.getElementById('choices-container').insertAdjacentHTML('beforeend', choiceRowHtml());
             reindexAll();
@@ -298,7 +351,7 @@
 
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('remove-row')) {
-                e.target.closest('.action-row, .pool-row, .choice-action-row, .choice-pool-row').remove();
+                e.target.closest('.action-row, .pool-row, .condition-row, .choice-action-row, .choice-pool-row').remove();
                 reindexAll();
             }
             if (e.target.classList.contains('remove-choice')) {
