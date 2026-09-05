@@ -7,7 +7,7 @@ import java.util.Objects;
 
 /**
  * One candidate in a weighted random pool of next-event transitions
- * (see {@link Event#getNextEventPool()} / {@link Choice#getNextEventPool()}).
+ * (see the nextEventPool field in {@link Event} and {@link Choice}).
  *
  * Higher weight = proportionally more likely to be picked, relative to
  * the OTHER ELIGIBLE candidates in the same pool at selection time.

@@ -65,8 +65,8 @@
     </div>
 
     <script th:inline="javascript">
-        const scenarioData = {};
-        const operators = [];
+        const scenarioData = /*[[${scenario}]]*/ {};
+        const operators = /*[[${operators}]]*/ [];
     </script>
     <script th:inline="none">
         (function () {
@@ -451,7 +451,6 @@
                 render();
             });
 
-            // Double-click to create event
             svg.addEventListener('dblclick', function (evt) {
                 if (!editMode || evt.target !== svg) return;
                 const rect = svg.getBoundingClientRect();
@@ -724,7 +723,9 @@
                         if (eventId && weight > 0) pool.push({ eventId: eventId, weight: weight });
                     });
 
-                    // Read choices
+                    const originalChoicesById = {};
+                    (dto.choices || []).forEach(function (c) { originalChoicesById[c.id] = c; });
+
                     const choices = [];
                     const choiceIds = document.querySelectorAll('#insp-choices .choice-id');
                     const choiceLabels = document.querySelectorAll('#insp-choices .choice-label');
@@ -733,15 +734,25 @@
                         const cid = choiceIds[i].value.trim();
                         const clabel = choiceLabels[i].value.trim() || cid;
                         const cnext = choiceNexts[i].value || null;
-                        if (cid) choices.push({ id: cid, label: clabel, nextEventId: cnext, condition: { type: 'ALWAYS_TRUE' }, actions: [], nextEventPool: [] });
+                        if (!cid) continue;
+                        const original = originalChoicesById[cid];
+                        choices.push({
+                            id: cid,
+                            label: clabel,
+                            description: original ? original.description : null,
+                            nextEventId: cnext,
+                            condition: original ? original.condition : { type: 'ALWAYS_TRUE' },
+                            actions: original ? original.actions : [],
+                            nextEventPool: original ? original.nextEventPool : []
+                        });
                     }
 
                     const payload = {
                         id: id,
                         name: name,
                         description: description,
-                        condition: { type: 'ALWAYS_TRUE' },
-                        actions: [],
+                        condition: dto.condition,
+                        actions: dto.actions,
                         choices: choices,
                         nextEventId: nextEventId,
                         cooldownTicks: cooldownTicks,

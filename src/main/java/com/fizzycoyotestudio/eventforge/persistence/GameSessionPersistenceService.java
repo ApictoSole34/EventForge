@@ -4,7 +4,6 @@ import com.fizzycoyotestudio.eventforge.engine.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -26,6 +25,13 @@ import java.util.function.Predicate;
  * GameSessionEntity, since it needs that bookkeeping to survive a
  * request boundary via persisted columns rather than live in memory.
  *
+ * <p>JSON (de)serialization of GameState and the cooldown map is
+ * delegated to {@link EventForgeJsonMapper} — the single consolidated
+ * mapper also used by {@link EventPersistenceMapper} and
+ * {@link ScenarioPersistenceService}, replacing what used to be two
+ * separate single-purpose mappers ({@code GameStateJsonMapper},
+ * {@code CooldownJsonMapper}) here.
+ *
  * Three persisted flags/fields make the session's state fully derivable
  * from a plain GET (no action needs to run just to render a page):
  *   - triggered: has the current event's own actions already been
@@ -43,18 +49,15 @@ public class GameSessionPersistenceService {
 
     private final GameSessionRepository repository;
     private final ScenarioPersistenceService scenarioService;
-    private final GameStateJsonMapper stateJsonMapper;
-    private final CooldownJsonMapper cooldownJsonMapper;
+    private final EventForgeJsonMapper json;
     private final EventEngine engine = new EventEngine();
 
     public GameSessionPersistenceService(GameSessionRepository repository,
                                          ScenarioPersistenceService scenarioService,
-                                         GameStateJsonMapper stateJsonMapper,
-                                         CooldownJsonMapper cooldownJsonMapper) {
+                                         EventForgeJsonMapper json) {
         this.repository = repository;
         this.scenarioService = scenarioService;
-        this.stateJsonMapper = stateJsonMapper;
-        this.cooldownJsonMapper = cooldownJsonMapper;
+        this.json = json;
     }
 
     @Transactional
@@ -71,11 +74,11 @@ public class GameSessionPersistenceService {
         entity.setScenarioId(scenarioId);
         entity.setPlayerId(playerId);
         entity.setCurrentEventBusinessId(scenario.startEventId());
-        entity.setStateJson(stateJsonMapper.write(scenario.initialState()));
+        entity.setStateJson(json.writeState(scenario.initialState()));
         entity.setTriggered(false);
         entity.setTerminal(false);
         entity.setCurrentTick(0);
-        entity.setCooldownJson(cooldownJsonMapper.write(Map.of()));
+        entity.setCooldownJson(json.writeCooldowns(Map.of()));
 
         return repository.save(entity).getId();
     }
@@ -139,7 +142,7 @@ public class GameSessionPersistenceService {
     public GameSessionView getSession(UUID sessionId) {
         GameSessionEntity entity = getOrThrow(sessionId);
         ScenarioPersistenceService.LoadedScenario scenario = scenarioService.load(entity.getScenarioId());
-        GameState state = stateJsonMapper.read(entity.getStateJson());
+        GameState state = json.readState(entity.getStateJson());
         Event current = scenario.registry().getOrThrow(entity.getCurrentEventBusinessId());
 
         List<ChoiceView> choices = (entity.isTriggered() && !entity.isTerminal() && current.hasChoices())
@@ -175,9 +178,9 @@ public class GameSessionPersistenceService {
         }
 
         ScenarioPersistenceService.LoadedScenario scenario = scenarioService.load(entity.getScenarioId());
-        GameState state = stateJsonMapper.read(entity.getStateJson());
+        GameState state = json.readState(entity.getStateJson());
         Event current = scenario.registry().getOrThrow(entity.getCurrentEventBusinessId());
-        Map<String, Integer> lastTriggeredTick = cooldownJsonMapper.read(entity.getCooldownJson());
+        Map<String, Integer> lastTriggeredTick = json.readCooldowns(entity.getCooldownJson());
         int tick = entity.getCurrentTick();
 
         Predicate<String> eligible = candidateId ->
@@ -192,7 +195,7 @@ public class GameSessionPersistenceService {
             Map<String, Integer> updatedCooldowns = new HashMap<>(lastTriggeredTick);
             updatedCooldowns.put(current.getId(), newTick);
             entity.setCurrentTick(newTick);
-            entity.setCooldownJson(cooldownJsonMapper.write(updatedCooldowns));
+            entity.setCooldownJson(json.writeCooldowns(updatedCooldowns));
 
             entity.setTriggered(true);
             if (!result.isAwaitingChoice()) {
@@ -205,7 +208,7 @@ public class GameSessionPersistenceService {
             }
         }
 
-        entity.setStateJson(stateJsonMapper.write(state));
+        entity.setStateJson(json.writeState(state));
         repository.save(entity);
         return getSession(sessionId);
     }
@@ -219,9 +222,9 @@ public class GameSessionPersistenceService {
         }
 
         ScenarioPersistenceService.LoadedScenario scenario = scenarioService.load(entity.getScenarioId());
-        GameState state = stateJsonMapper.read(entity.getStateJson());
+        GameState state = json.readState(entity.getStateJson());
         Event current = scenario.registry().getOrThrow(entity.getCurrentEventBusinessId());
-        Map<String, Integer> lastTriggeredTick = cooldownJsonMapper.read(entity.getCooldownJson());
+        Map<String, Integer> lastTriggeredTick = json.readCooldowns(entity.getCooldownJson());
         int tick = entity.getCurrentTick();
 
         Choice choice = current.getChoices().stream()
@@ -242,7 +245,7 @@ public class GameSessionPersistenceService {
             entity.setTerminal(true);
         }
 
-        entity.setStateJson(stateJsonMapper.write(state));
+        entity.setStateJson(json.writeState(state));
         repository.save(entity);
         return getSession(sessionId);
     }

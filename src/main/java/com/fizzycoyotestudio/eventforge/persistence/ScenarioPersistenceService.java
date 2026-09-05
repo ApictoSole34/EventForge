@@ -17,14 +17,14 @@ public class ScenarioPersistenceService {
 
     private final ScenarioRepository repository;
     private final EventPersistenceMapper mapper;
-    private final GameStateJsonMapper stateJsonMapper;
+    private final EventForgeJsonMapper json;
     private final GameSessionRepository gameSessionRepository;
 
     public ScenarioPersistenceService(ScenarioRepository repository, EventPersistenceMapper mapper,
-                                      GameStateJsonMapper stateJsonMapper, GameSessionRepository gameSessionRepository) {
+                                      EventForgeJsonMapper json, GameSessionRepository gameSessionRepository) {
         this.repository = repository;
         this.mapper = mapper;
-        this.stateJsonMapper = stateJsonMapper;
+        this.json = json;
         this.gameSessionRepository = gameSessionRepository;
     }
 
@@ -35,7 +35,7 @@ public class ScenarioPersistenceService {
         scenario.setName(name);
         scenario.setDescription(description);
         scenario.setStartEventBusinessId(startEventId);
-        scenario.setInitialStateJson(stateJsonMapper.write(initialState));
+        scenario.setInitialStateJson(json.writeState(initialState));
 
         events.forEach(event -> scenario.getEvents().add(mapper.toEntity(event, scenario)));
 
@@ -93,7 +93,7 @@ public class ScenarioPersistenceService {
                 entity.getName(),
                 entity.getDescription(),
                 entity.getStartEventBusinessId(),
-                stateJsonMapper.read(entity.getInitialStateJson()),
+                json.readState(entity.getInitialStateJson()),
                 new EventRegistry(eventsById)
         );
     }
@@ -110,7 +110,7 @@ public class ScenarioPersistenceService {
                             entity.getName(),
                             entity.getDescription(),
                             entity.getStartEventBusinessId(),
-                            stateJsonMapper.read(entity.getInitialStateJson()),
+                            json.readState(entity.getInitialStateJson()),
                             new EventRegistry(eventsById)
                     );
                 })

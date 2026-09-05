@@ -9,9 +9,9 @@ import java.util.List;
 @Component
 public class EventPersistenceMapper {
 
-    private final ConditionActionJsonMapper json;
+    private final EventForgeJsonMapper json;
 
-    public EventPersistenceMapper(ConditionActionJsonMapper json) {
+    public EventPersistenceMapper(EventForgeJsonMapper json) {
         this.json = json;
     }
 

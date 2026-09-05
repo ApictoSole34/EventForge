@@ -59,7 +59,7 @@ public class EventEngine {
     /**
      * Attempts to trigger an event. If the event's condition fails, the
      * state is returned unchanged and the result is marked as not
-     * triggered. Otherwise the event's own actions are applied (in
+     * triggered. Otherwise, the event's own actions are applied (in
      * declaration order, since later actions may depend on earlier ones),
      * and the engine either offers the event's choices or resolves
      * directly to its next event (via {@link Event#resolveNextEventId},
@@ -111,7 +111,7 @@ public class EventEngine {
      * {@link Event}).
      *
      * <p>Callers are expected to only pass choices obtained from a
-     * fresh {@link EventResult#getOfferedChoices()} call. As a safety
+     * fresh {@code EventResult#getOfferedChoices()} call. As a safety
      * net against stale choices — e.g. a client that cached the choice
      * list and calls this well after the GameState has since changed —
      * the choice's condition is re-checked here. If it no longer holds,

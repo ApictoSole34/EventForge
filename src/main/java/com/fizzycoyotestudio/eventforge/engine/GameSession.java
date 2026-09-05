@@ -22,10 +22,10 @@ import java.util.Objects;
  * passed and its actions ran — i.e. {@code EventResult.isTriggered()}),
  * the tick counter advances by one and that event's id is stamped with
  * the tick it fired on. When resolving a weighted nextEventPool
- * (Event or Choice), a candidate is only eligible if the registry
- * contains it, its own condition currently holds, AND it isn't still
- * within its {@code cooldownTicks} window since it last fired in THIS
- * session.
+ * (Event or Choice), a candidate's eligibility (registry contains it,
+ * its own condition currently holds, and it isn't still on cooldown) is
+ * delegated to {@link EligibilityChecker} — the same check
+ * {@code GameSessionPersistenceService} uses for the DB-backed flow.
  */
 public final class GameSession {
 
@@ -118,23 +118,7 @@ public final class GameSession {
     }
 
     private boolean isEligibleCandidate(String eventId) {
-        if (!registry.contains(eventId)) {
-            return false;
-        }
-        Event candidate = registry.getOrThrow(eventId);
-        return candidate.canTrigger(state) && !isOnCooldown(candidate);
-    }
-
-    private boolean isOnCooldown(Event candidate) {
-        int cooldown = candidate.getCooldownTicks();
-        if (cooldown <= 0) {
-            return false;
-        }
-        Integer lastFired = lastTriggeredTick.get(candidate.getId());
-        if (lastFired == null) {
-            return false;
-        }
-        return (currentTick - lastFired) < cooldown;
+        return EligibilityChecker.isEligible(registry, state, lastTriggeredTick, currentTick, eventId);
     }
 
     private void advanceTo(String nextEventId) {
